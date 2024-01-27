@@ -1,6 +1,6 @@
-module "vpc" {
-  source                  = "../modules/network/vpc"
-  project_id              = var.project_id
+//VPC for Developer
+resource "google_compute_network" "vpc" {
+  project                 = var.project_id
   name                    = var.name
   description             = var.description
   auto_create_subnetworks = var.auto_create_subnetworks
