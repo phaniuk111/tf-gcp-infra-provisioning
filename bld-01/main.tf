@@ -28,7 +28,7 @@ module "gke" {
   master_authorized_networks = [
     {
       display_name = "jenkins"
-      cidr_block   = "34.175.191.114/32"
+      cidr_block   = "34.175.175.22/32"
     },
     {
       display_name = "shell"
