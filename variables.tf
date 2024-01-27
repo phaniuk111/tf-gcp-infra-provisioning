@@ -17,8 +17,13 @@ variable "description" {
   type = string
 }
 
-
-
 variable "routing_mode" {
   type = string
 }
+
+
+variable "region" {}
+variable "kubernetes_network_ipv4_cidr" {}
+
+variable "gke_name" {}
+variable "master_authorized_networks" {}
