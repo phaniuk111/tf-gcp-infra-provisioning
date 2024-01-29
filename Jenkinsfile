@@ -24,6 +24,7 @@ pipeline{
         stage('TF Validate'){
             steps{
                 sh """
+                    cd bld-01
                     terraform validate
                 """
                
@@ -35,7 +36,7 @@ pipeline{
         stage('TF Plan'){
             steps{
                 sh """
-                    ls -lrt 
+                    cd bld-01
                     terraform plan
                 """
                
