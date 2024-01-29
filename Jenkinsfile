@@ -5,6 +5,7 @@ pipeline{
             steps{
                 echo 'Checking out branch' + env.BRANCH_NAME
                 checkout scm
+                sh 'ls -lrt'
                 
             }
         }
