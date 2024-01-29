@@ -75,9 +75,9 @@ pipeline{
                     def userInput = input(
                         id: 'userInput',
                         message: 'Do you want to proceed?',
-                        parameters: [
-                            [$class: 'BooleanParameterDefinition', defaultValue: false, description: 'Proceed?', name: 'PROCEED']
-                        ]
+                       
+                        parameters: [boolean(name: 'PROCEED', defaultValue: false, description: 'Proceed?')]
+                        
                     )
 
                     // Check the user's input
