@@ -5,9 +5,10 @@ resource "google_container_cluster" "primary" {
   location                 = var.region
   network                  = var.network
   subnetwork               = var.subnet_name
-  remove_default_node_pool = true ## create the smallest possible default node pool and immediately delete it.
+  remove_default_node_pool = false ## create the smallest possible default node pool and immediately delete it.
 
   initial_node_count = 1
+
 
   private_cluster_config {
     enable_private_nodes    = true

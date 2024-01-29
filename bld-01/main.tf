@@ -32,7 +32,8 @@ module "gke" {
     },
     {
       display_name = "shell"
-      cidr_block   = "34.34.172.0/22"
+      cidr_block   = "34.78.220.0/22"
+     
     }
   ]
   depends_on = [module.vpc, module.subnet]
