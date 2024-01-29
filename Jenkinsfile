@@ -47,17 +47,12 @@ pipeline{
         }
         stage('TF apply'){
          
-            
-           
-        def userInput;
-            try {
-                timeout(time: 1, unit: 'DAYS') {
-                    userInput = input("Deploy ${env.BRANCH_NAME}?")
-                }
-            } catch (err) {
-                userInput = false;
-                echo "Aborted by: [${user}]"
-            }
+        steps {
+        script {
+           def userInput = input(id: 'confirm', message: 'Apply Terraform?', parameters: [ [$class: 'BooleanParameterDefinition', defaultValue: false, description: 'Apply terraform', name: 'confirm'] ])
+           }
+         }    
+     
            
             
         }
