@@ -11,7 +11,12 @@ pipeline{
         }
         stage('TF Initialize'){
             steps{
-                sh 'terraform init'
+                sh """
+                    cd bld-01
+                    terraform init
+                    terraform plan
+                """
+               
                 sh 'gcloud auth list'
                 sh 'gcloud container clusters get-credentials wordspres-gke-euwe2 --region europe-west2 --project flash-keel-412418'
                 sh 'kubectl get ns'
