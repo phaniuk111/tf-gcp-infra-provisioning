@@ -1,4 +1,4 @@
-# Build the infra
+# Build the infra 
 module "vpc" {
   source                  = "../modules/network/vpc"
   project_id              = "flash-keel-412418"
