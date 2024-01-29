@@ -14,6 +14,27 @@ pipeline{
                 sh """
                     cd bld-01
                     terraform init
+                """
+               
+                sh 'gcloud auth list'
+                sh 'gcloud container clusters get-credentials wordspres-gke-euwe2 --region europe-west2 --project flash-keel-412418'
+                sh 'kubectl get ns'
+            }
+        }
+        stage('TF Validate'){
+            steps{
+                sh """
+                    terraform validate
+                """
+               
+                sh 'gcloud auth list'
+                sh 'gcloud container clusters get-credentials wordspres-gke-euwe2 --region europe-west2 --project flash-keel-412418'
+                sh 'kubectl get ns'
+            }
+        }
+        stage('TF Plan'){
+            steps{
+                sh """
                     terraform plan
                 """
                
