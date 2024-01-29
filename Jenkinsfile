@@ -51,6 +51,11 @@ pipeline{
         script {
            def userInput = input(id: 'confirm', message: 'Apply Terraform?', parameters: [ [$class: 'BooleanParameterDefinition', defaultValue: false, description: 'Apply terraform', name: 'confirm'] ])
            }
+        if (userInput) {
+                        echo 'User chose to proceed.'
+                    } else {
+                        error 'User chose not to proceed. Aborting the pipeline.'
+                    }
          }    
      
            
