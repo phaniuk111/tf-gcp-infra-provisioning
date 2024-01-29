@@ -44,7 +44,7 @@ pipeline{
             sh"""
                 # Run terraorm apply
                 cd bld-01
-                terraform apply
+                terraform apply -auto-approve
             """
          }    
      
