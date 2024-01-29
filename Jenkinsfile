@@ -35,6 +35,7 @@ pipeline{
         stage('TF Plan'){
             steps{
                 sh """
+                    ls -lrt 
                     terraform plan
                 """
                
