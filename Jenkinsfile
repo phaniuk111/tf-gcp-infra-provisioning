@@ -46,32 +46,10 @@ pipeline{
             }
         }
         stage('TF apply'){
-            steps{
-                /*
-                script {
-                    // Prompt the user for input
-                    def userInput = input(
-                        id: 'userInput',
-                        message: 'Do you want to proceed?',
-                        parameters: [
-                            boolean(defaultValue: false, description: 'Proceed?', name: 'PROCEED')
-                        ]
-                    )
-
-                    // Check the user's input
-                    if (userInput.PROCEED) {
-                        echo 'User chose to proceed.'
-                        sh """
-                        cd bld-01
-                        terraform plan
-                        """
-                    } else {
-                        error 'User chose not to proceed. Aborting the pipeline.'
-                    }
-                }
-                */
+         
+            
            
-            def userInput;
+        def userInput;
             try {
                 timeout(time: 1, unit: 'DAYS') {
                     userInput = input("Deploy ${env.BRANCH_NAME}?")
@@ -81,7 +59,7 @@ pipeline{
                 echo "Aborted by: [${user}]"
             }
            
-            }
+            
         }
  
     }
