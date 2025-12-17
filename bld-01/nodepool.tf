@@ -1,4 +1,4 @@
-# GKE Nodepool Monitoring Alerts - WITH CROSS-SERIES AGGREGATION
+# GKE Nodepool Monitoring Alerts - WITH CONCISE DOCUMENTATION
 # Based on official GCP documentation
 
 variable "project_id" {
@@ -30,7 +30,7 @@ resource "google_monitoring_alert_policy" "nodepool_cpu_high" {
   enabled      = true
 
   documentation {
-    content   = "Average CPU utilization across all nodes in nodepool ${var.nodepool_name} has exceeded 80% for more than 10 minutes."
+    content   = "Project: ${var.project_id} | Cluster: ${var.cluster_name} | Nodepool: ${var.nodepool_name}\nAverage CPU utilization across nodepool has exceeded 80% for more than 10 minutes."
     mime_type = "text/markdown"
   }
 
@@ -80,6 +80,8 @@ resource "google_monitoring_alert_policy" "nodepool_cpu_high" {
     severity    = "warning"
     component   = "gke"
     nodepool    = var.nodepool_name
+    cluster     = var.cluster_name
+    project     = var.project_id
     environment = "production"
     alert_type  = "aggregate"
   }
@@ -93,7 +95,7 @@ resource "google_monitoring_alert_policy" "nodepool_cpu_high_single_node" {
   enabled      = true
 
   documentation {
-    content   = "At least one node in nodepool ${var.nodepool_name} has CPU utilization exceeding 90% for more than 10 minutes. Check for hotspots."
+    content   = "Project: ${var.project_id} | Cluster: ${var.cluster_name} | Nodepool: ${var.nodepool_name}\nAt least one node has CPU utilization exceeding 90% for more than 10 minutes."
     mime_type = "text/markdown"
   }
 
@@ -116,7 +118,6 @@ resource "google_monitoring_alert_policy" "nodepool_cpu_high_single_node" {
       aggregations {
         alignment_period   = "60s"
         per_series_aligner = "ALIGN_MEAN"
-        # No cross_series_reducer - alerts on individual nodes
       }
 
       trigger {
@@ -139,6 +140,8 @@ resource "google_monitoring_alert_policy" "nodepool_cpu_high_single_node" {
     severity    = "warning"
     component   = "gke"
     nodepool    = var.nodepool_name
+    cluster     = var.cluster_name
+    project     = var.project_id
     environment = "production"
     alert_type  = "per_node"
   }
@@ -152,7 +155,7 @@ resource "google_monitoring_alert_policy" "nodepool_memory_high" {
   enabled      = true
 
   documentation {
-    content   = "Average memory utilization across all nodes in nodepool ${var.nodepool_name} has exceeded 85% for more than 10 minutes."
+    content   = "Project: ${var.project_id} | Cluster: ${var.cluster_name} | Nodepool: ${var.nodepool_name}\nAverage memory utilization across nodepool has exceeded 85% for more than 10 minutes."
     mime_type = "text/markdown"
   }
 
@@ -202,6 +205,8 @@ resource "google_monitoring_alert_policy" "nodepool_memory_high" {
     severity    = "warning"
     component   = "gke"
     nodepool    = var.nodepool_name
+    cluster     = var.cluster_name
+    project     = var.project_id
     environment = "production"
     alert_type  = "aggregate"
   }
@@ -215,7 +220,7 @@ resource "google_monitoring_alert_policy" "nodepool_memory_high_single_node" {
   enabled      = true
 
   documentation {
-    content   = "At least one node in nodepool ${var.nodepool_name} has memory utilization exceeding 92% for more than 10 minutes. Risk of pod evictions."
+    content   = "Project: ${var.project_id} | Cluster: ${var.cluster_name} | Nodepool: ${var.nodepool_name}\nAt least one node has memory utilization exceeding 92% for more than 10 minutes. Risk of pod evictions."
     mime_type = "text/markdown"
   }
 
@@ -238,7 +243,6 @@ resource "google_monitoring_alert_policy" "nodepool_memory_high_single_node" {
       aggregations {
         alignment_period   = "60s"
         per_series_aligner = "ALIGN_MEAN"
-        # No cross_series_reducer - alerts on individual nodes
       }
 
       trigger {
@@ -261,6 +265,8 @@ resource "google_monitoring_alert_policy" "nodepool_memory_high_single_node" {
     severity    = "warning"
     component   = "gke"
     nodepool    = var.nodepool_name
+    cluster     = var.cluster_name
+    project     = var.project_id
     environment = "production"
     alert_type  = "per_node"
   }
@@ -274,7 +280,7 @@ resource "google_monitoring_alert_policy" "nodepool_cpu_critical" {
   enabled      = true
 
   documentation {
-    content   = "CRITICAL: Maximum CPU utilization in nodepool ${var.nodepool_name} has exceeded 95% for more than 5 minutes."
+    content   = "Project: ${var.project_id} | Cluster: ${var.cluster_name} | Nodepool: ${var.nodepool_name}\nCRITICAL: Maximum CPU utilization in nodepool has exceeded 95% for more than 5 minutes. Immediate action required."
     mime_type = "text/markdown"
   }
 
@@ -324,6 +330,8 @@ resource "google_monitoring_alert_policy" "nodepool_cpu_critical" {
     severity    = "critical"
     component   = "gke"
     nodepool    = var.nodepool_name
+    cluster     = var.cluster_name
+    project     = var.project_id
     environment = "production"
     alert_type  = "aggregate"
   }
@@ -337,7 +345,7 @@ resource "google_monitoring_alert_policy" "nodepool_memory_critical" {
   enabled      = true
 
   documentation {
-    content   = "CRITICAL: Maximum memory utilization in nodepool ${var.nodepool_name} has exceeded 95% for more than 5 minutes."
+    content   = "Project: ${var.project_id} | Cluster: ${var.cluster_name} | Nodepool: ${var.nodepool_name}\nCRITICAL: Maximum memory utilization in nodepool has exceeded 95% for more than 5 minutes. Pod evictions likely."
     mime_type = "text/markdown"
   }
 
@@ -387,6 +395,8 @@ resource "google_monitoring_alert_policy" "nodepool_memory_critical" {
     severity    = "critical"
     component   = "gke"
     nodepool    = var.nodepool_name
+    cluster     = var.cluster_name
+    project     = var.project_id
     environment = "production"
     alert_type  = "aggregate"
   }
@@ -400,7 +410,7 @@ resource "google_monitoring_alert_policy" "nodepool_disk_high" {
   enabled      = true
 
   documentation {
-    content   = "Maximum ephemeral storage utilization in nodepool ${var.nodepool_name} has exceeded 80% for more than 10 minutes."
+    content   = "Project: ${var.project_id} | Cluster: ${var.cluster_name} | Nodepool: ${var.nodepool_name}\nMaximum ephemeral storage utilization in nodepool has exceeded 80% for more than 10 minutes. May cause pod evictions."
     mime_type = "text/markdown"
   }
 
@@ -450,6 +460,8 @@ resource "google_monitoring_alert_policy" "nodepool_disk_high" {
     severity    = "warning"
     component   = "gke"
     nodepool    = var.nodepool_name
+    cluster     = var.cluster_name
+    project     = var.project_id
     environment = "production"
     alert_type  = "aggregate"
   }
@@ -490,3 +502,9 @@ output "disk_high_alert_id" {
   description = "ID of the disk high utilization alert policy (maximum)"
   value       = google_monitoring_alert_policy.nodepool_disk_high.id
 }
+```
+
+**Email notification will now show:**
+```
+Project: my-project-123 | Cluster: prod-cluster | Nodepool: production-pool
+Average CPU utilization across nodepool has exceeded 80% for more than 10 minutes.
