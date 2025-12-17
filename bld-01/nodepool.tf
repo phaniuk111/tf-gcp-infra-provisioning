@@ -1,5 +1,6 @@
-# GKE Nodepool Monitoring Alerts - WITH CONCISE DOCUMENTATION
-# Based on official GCP documentation
+# GKE Node Pool Monitoring Alerts - Filtered by tenant_nar_id
+# Using Heredoc (EOT) syntax for better readability
+# Filter validated: metadata.user_labels.tenant_nar_id
 
 variable "project_id" {
   description = "GCP Project ID"
@@ -11,8 +12,8 @@ variable "cluster_name" {
   type        = string
 }
 
-variable "nodepool_name" {
-  description = "GKE Nodepool Name"
+variable "tenant_nar_id" {
+  description = "Tenant NAR ID (e.g., 173952-1)"
   type        = string
 }
 
@@ -22,20 +23,35 @@ variable "notification_channels" {
   default     = []
 }
 
-# Node CPU Allocatable Utilization Alert (Average across all nodes)
+# ====================================================================
+# CPU ALERT - Node CPU Utilization > 80%
+# ====================================================================
 resource "google_monitoring_alert_policy" "nodepool_cpu_high" {
   project      = var.project_id
-  display_name = "GKE Nodepool ${var.nodepool_name} - High CPU Utilization (Avg)"
+  display_name = "GKE Tenant ${var.tenant_nar_id} - High CPU Utilization"
   combiner     = "OR"
   enabled      = true
 
   documentation {
-    content   = "Project: ${var.project_id} | Cluster: ${var.cluster_name} | Nodepool: ${var.nodepool_name}\nAverage CPU utilization across nodepool has exceeded 80% for more than 10 minutes."
+    content   = <<-EOT
+      CPU utilization for tenant ${var.tenant_nar_id} nodes has exceeded 80% for more than 5 minutes.
+      
+      **Alert Details:**
+      - Threshold: 80%
+      - Duration: 5 minutes
+      - Tenant NAR ID: ${var.tenant_nar_id}
+      - Cluster: ${var.cluster_name}
+      
+      **Actions:**
+      1. Check node CPU usage in GKE console
+      2. Review pod resource requests/limits
+      3. Consider scaling up or adding nodes
+    EOT
     mime_type = "text/markdown"
   }
 
   conditions {
-    display_name = "Nodepool Avg CPU Utilization > 80%"
+    display_name = "Node CPU > 80%"
 
     condition_threshold {
       filter = <<-EOT
@@ -43,79 +59,14 @@ resource "google_monitoring_alert_policy" "nodepool_cpu_high" {
         AND resource.labels.cluster_name = "${var.cluster_name}"
         AND resource.labels.project_id = "${var.project_id}"
         AND metric.type = "kubernetes.io/node/cpu/allocatable_utilization"
-        AND metadata.user_labels."cloud.google.com/gke-nodepool" = "${var.nodepool_name}"
+        AND metadata.user_labels.tenant_nar_id = "${var.tenant_nar_id}"
       EOT
 
-      duration   = "600s"
-      comparison = "COMPARISON_GT"
+      duration        = "300s"
+      comparison      = "COMPARISON_GT"
       threshold_value = 0.8
 
       aggregations {
-        alignment_period     = "60s"
-        per_series_aligner   = "ALIGN_MEAN"
-        cross_series_reducer = "REDUCE_MEAN"
-        group_by_fields      = [
-          "resource.labels.cluster_name",
-          "metadata.user_labels.\"cloud.google.com/gke-nodepool\""
-        ]
-      }
-
-      trigger {
-        count = 1
-      }
-    }
-  }
-
-  notification_channels = var.notification_channels
-
-  alert_strategy {
-    auto_close = "86400s"
-    
-    notification_rate_limit {
-      period = "3600s"
-    }
-  }
-
-  user_labels = {
-    severity    = "warning"
-    component   = "gke"
-    nodepool    = var.nodepool_name
-    cluster     = var.cluster_name
-    project     = var.project_id
-    environment = "production"
-    alert_type  = "aggregate"
-  }
-}
-
-# Node CPU - Any Single Node Alert (for hotspot detection)
-resource "google_monitoring_alert_policy" "nodepool_cpu_high_single_node" {
-  project      = var.project_id
-  display_name = "GKE Nodepool ${var.nodepool_name} - Single Node High CPU"
-  combiner     = "OR"
-  enabled      = true
-
-  documentation {
-    content   = "Project: ${var.project_id} | Cluster: ${var.cluster_name} | Nodepool: ${var.nodepool_name}\nAt least one node has CPU utilization exceeding 90% for more than 10 minutes."
-    mime_type = "text/markdown"
-  }
-
-  conditions {
-    display_name = "Any Node CPU Utilization > 90%"
-
-    condition_threshold {
-      filter = <<-EOT
-        resource.type = "k8s_node"
-        AND resource.labels.cluster_name = "${var.cluster_name}"
-        AND resource.labels.project_id = "${var.project_id}"
-        AND metric.type = "kubernetes.io/node/cpu/allocatable_utilization"
-        AND metadata.user_labels."cloud.google.com/gke-nodepool" = "${var.nodepool_name}"
-      EOT
-
-      duration   = "600s"
-      comparison = "COMPARISON_GT"
-      threshold_value = 0.9
-
-      aggregations {
         alignment_period   = "60s"
         per_series_aligner = "ALIGN_MEAN"
       }
@@ -129,38 +80,52 @@ resource "google_monitoring_alert_policy" "nodepool_cpu_high_single_node" {
   notification_channels = var.notification_channels
 
   alert_strategy {
-    auto_close = "86400s"
+    auto_close = "86400s" # 24 hours
     
     notification_rate_limit {
-      period = "3600s"
+      period = "3600s" # Re-notify every hour
     }
   }
 
   user_labels = {
-    severity    = "warning"
-    component   = "gke"
-    nodepool    = var.nodepool_name
-    cluster     = var.cluster_name
-    project     = var.project_id
-    environment = "production"
-    alert_type  = "per_node"
+    severity      = "warning"
+    tenant_nar_id = var.tenant_nar_id
+    alert_type    = "node_cpu"
+    managed_by    = "terraform"
   }
 }
 
-# Node Memory Allocatable Utilization Alert (Average across all nodes)
+# ====================================================================
+# MEMORY ALERT - Node Memory Utilization > 85%
+# ====================================================================
 resource "google_monitoring_alert_policy" "nodepool_memory_high" {
   project      = var.project_id
-  display_name = "GKE Nodepool ${var.nodepool_name} - High Memory Utilization (Avg)"
+  display_name = "GKE Tenant ${var.tenant_nar_id} - High Memory Utilization"
   combiner     = "OR"
   enabled      = true
 
   documentation {
-    content   = "Project: ${var.project_id} | Cluster: ${var.cluster_name} | Nodepool: ${var.nodepool_name}\nAverage memory utilization across nodepool has exceeded 85% for more than 10 minutes."
+    content   = <<-EOT
+      Memory utilization for tenant ${var.tenant_nar_id} nodes has exceeded 85% for more than 5 minutes.
+      This may cause pod evictions and OOMKilled containers.
+      
+      **Alert Details:**
+      - Threshold: 85%
+      - Duration: 5 minutes
+      - Tenant NAR ID: ${var.tenant_nar_id}
+      - Cluster: ${var.cluster_name}
+      
+      **Actions:**
+      1. Check for memory leaks in applications
+      2. Review pod memory requests/limits
+      3. Check for OOMKilled pods
+      4. Consider scaling up nodes or adding memory
+    EOT
     mime_type = "text/markdown"
   }
 
   conditions {
-    display_name = "Nodepool Avg Memory Utilization > 85%"
+    display_name = "Node Memory > 85%"
 
     condition_threshold {
       filter = <<-EOT
@@ -168,79 +133,14 @@ resource "google_monitoring_alert_policy" "nodepool_memory_high" {
         AND resource.labels.cluster_name = "${var.cluster_name}"
         AND resource.labels.project_id = "${var.project_id}"
         AND metric.type = "kubernetes.io/node/memory/allocatable_utilization"
-        AND metadata.user_labels."cloud.google.com/gke-nodepool" = "${var.nodepool_name}"
+        AND metadata.user_labels.tenant_nar_id = "${var.tenant_nar_id}"
       EOT
 
-      duration   = "600s"
-      comparison = "COMPARISON_GT"
+      duration        = "300s"
+      comparison      = "COMPARISON_GT"
       threshold_value = 0.85
 
       aggregations {
-        alignment_period     = "60s"
-        per_series_aligner   = "ALIGN_MEAN"
-        cross_series_reducer = "REDUCE_MEAN"
-        group_by_fields      = [
-          "resource.labels.cluster_name",
-          "metadata.user_labels.\"cloud.google.com/gke-nodepool\""
-        ]
-      }
-
-      trigger {
-        count = 1
-      }
-    }
-  }
-
-  notification_channels = var.notification_channels
-
-  alert_strategy {
-    auto_close = "86400s"
-    
-    notification_rate_limit {
-      period = "3600s"
-    }
-  }
-
-  user_labels = {
-    severity    = "warning"
-    component   = "gke"
-    nodepool    = var.nodepool_name
-    cluster     = var.cluster_name
-    project     = var.project_id
-    environment = "production"
-    alert_type  = "aggregate"
-  }
-}
-
-# Node Memory - Any Single Node Alert
-resource "google_monitoring_alert_policy" "nodepool_memory_high_single_node" {
-  project      = var.project_id
-  display_name = "GKE Nodepool ${var.nodepool_name} - Single Node High Memory"
-  combiner     = "OR"
-  enabled      = true
-
-  documentation {
-    content   = "Project: ${var.project_id} | Cluster: ${var.cluster_name} | Nodepool: ${var.nodepool_name}\nAt least one node has memory utilization exceeding 92% for more than 10 minutes. Risk of pod evictions."
-    mime_type = "text/markdown"
-  }
-
-  conditions {
-    display_name = "Any Node Memory Utilization > 92%"
-
-    condition_threshold {
-      filter = <<-EOT
-        resource.type = "k8s_node"
-        AND resource.labels.cluster_name = "${var.cluster_name}"
-        AND resource.labels.project_id = "${var.project_id}"
-        AND metric.type = "kubernetes.io/node/memory/allocatable_utilization"
-        AND metadata.user_labels."cloud.google.com/gke-nodepool" = "${var.nodepool_name}"
-      EOT
-
-      duration   = "600s"
-      comparison = "COMPARISON_GT"
-      threshold_value = 0.92
-
-      aggregations {
         alignment_period   = "60s"
         per_series_aligner = "ALIGN_MEAN"
       }
@@ -262,160 +162,44 @@ resource "google_monitoring_alert_policy" "nodepool_memory_high_single_node" {
   }
 
   user_labels = {
-    severity    = "warning"
-    component   = "gke"
-    nodepool    = var.nodepool_name
-    cluster     = var.cluster_name
-    project     = var.project_id
-    environment = "production"
-    alert_type  = "per_node"
+    severity      = "warning"
+    tenant_nar_id = var.tenant_nar_id
+    alert_type    = "node_memory"
+    managed_by    = "terraform"
   }
 }
 
-# Critical CPU Alert (Maximum across nodes)
-resource "google_monitoring_alert_policy" "nodepool_cpu_critical" {
-  project      = var.project_id
-  display_name = "GKE Nodepool ${var.nodepool_name} - Critical CPU Utilization"
-  combiner     = "OR"
-  enabled      = true
-
-  documentation {
-    content   = "Project: ${var.project_id} | Cluster: ${var.cluster_name} | Nodepool: ${var.nodepool_name}\nCRITICAL: Maximum CPU utilization in nodepool has exceeded 95% for more than 5 minutes. Immediate action required."
-    mime_type = "text/markdown"
-  }
-
-  conditions {
-    display_name = "Nodepool Max CPU Utilization > 95%"
-
-    condition_threshold {
-      filter = <<-EOT
-        resource.type = "k8s_node"
-        AND resource.labels.cluster_name = "${var.cluster_name}"
-        AND resource.labels.project_id = "${var.project_id}"
-        AND metric.type = "kubernetes.io/node/cpu/allocatable_utilization"
-        AND metadata.user_labels."cloud.google.com/gke-nodepool" = "${var.nodepool_name}"
-      EOT
-
-      duration   = "300s"
-      comparison = "COMPARISON_GT"
-      threshold_value = 0.95
-
-      aggregations {
-        alignment_period     = "60s"
-        per_series_aligner   = "ALIGN_MEAN"
-        cross_series_reducer = "REDUCE_MAX"
-        group_by_fields      = [
-          "resource.labels.cluster_name",
-          "metadata.user_labels.\"cloud.google.com/gke-nodepool\""
-        ]
-      }
-
-      trigger {
-        count = 1
-      }
-    }
-  }
-
-  notification_channels = var.notification_channels
-
-  alert_strategy {
-    auto_close = "86400s"
-    
-    notification_rate_limit {
-      period = "1800s"
-    }
-  }
-
-  user_labels = {
-    severity    = "critical"
-    component   = "gke"
-    nodepool    = var.nodepool_name
-    cluster     = var.cluster_name
-    project     = var.project_id
-    environment = "production"
-    alert_type  = "aggregate"
-  }
-}
-
-# Critical Memory Alert (Maximum across nodes)
-resource "google_monitoring_alert_policy" "nodepool_memory_critical" {
-  project      = var.project_id
-  display_name = "GKE Nodepool ${var.nodepool_name} - Critical Memory Utilization"
-  combiner     = "OR"
-  enabled      = true
-
-  documentation {
-    content   = "Project: ${var.project_id} | Cluster: ${var.cluster_name} | Nodepool: ${var.nodepool_name}\nCRITICAL: Maximum memory utilization in nodepool has exceeded 95% for more than 5 minutes. Pod evictions likely."
-    mime_type = "text/markdown"
-  }
-
-  conditions {
-    display_name = "Nodepool Max Memory Utilization > 95%"
-
-    condition_threshold {
-      filter = <<-EOT
-        resource.type = "k8s_node"
-        AND resource.labels.cluster_name = "${var.cluster_name}"
-        AND resource.labels.project_id = "${var.project_id}"
-        AND metric.type = "kubernetes.io/node/memory/allocatable_utilization"
-        AND metadata.user_labels."cloud.google.com/gke-nodepool" = "${var.nodepool_name}"
-      EOT
-
-      duration   = "300s"
-      comparison = "COMPARISON_GT"
-      threshold_value = 0.95
-
-      aggregations {
-        alignment_period     = "60s"
-        per_series_aligner   = "ALIGN_MEAN"
-        cross_series_reducer = "REDUCE_MAX"
-        group_by_fields      = [
-          "resource.labels.cluster_name",
-          "metadata.user_labels.\"cloud.google.com/gke-nodepool\""
-        ]
-      }
-
-      trigger {
-        count = 1
-      }
-    }
-  }
-
-  notification_channels = var.notification_channels
-
-  alert_strategy {
-    auto_close = "86400s"
-    
-    notification_rate_limit {
-      period = "1800s"
-    }
-  }
-
-  user_labels = {
-    severity    = "critical"
-    component   = "gke"
-    nodepool    = var.nodepool_name
-    cluster     = var.cluster_name
-    project     = var.project_id
-    environment = "production"
-    alert_type  = "aggregate"
-  }
-}
-
-# Node Disk Utilization Alert (Maximum across nodes)
+# ====================================================================
+# DISK ALERT - Node Ephemeral Storage > 80%
+# ====================================================================
 resource "google_monitoring_alert_policy" "nodepool_disk_high" {
   project      = var.project_id
-  display_name = "GKE Nodepool ${var.nodepool_name} - High Disk Utilization"
+  display_name = "GKE Tenant ${var.tenant_nar_id} - High Disk Utilization"
   combiner     = "OR"
   enabled      = true
 
   documentation {
-    content   = "Project: ${var.project_id} | Cluster: ${var.cluster_name} | Nodepool: ${var.nodepool_name}\nMaximum ephemeral storage utilization in nodepool has exceeded 80% for more than 10 minutes. May cause pod evictions."
+    content   = <<-EOT
+      Ephemeral storage utilization for tenant ${var.tenant_nar_id} nodes has exceeded 80%.
+      This can cause pod evictions due to disk pressure.
+      
+      **Alert Details:**
+      - Threshold: 80%
+      - Duration: 5 minutes
+      - Tenant NAR ID: ${var.tenant_nar_id}
+      - Cluster: ${var.cluster_name}
+      
+      **Actions:**
+      1. Check which pods are consuming disk space
+      2. Review container logs size
+      3. Clean up unused images/containers
+      4. Consider increasing node disk size
+    EOT
     mime_type = "text/markdown"
   }
 
   conditions {
-    display_name = "Nodepool Max Disk Utilization > 80%"
+    display_name = "Node Disk > 80%"
 
     condition_threshold {
       filter = <<-EOT
@@ -423,21 +207,16 @@ resource "google_monitoring_alert_policy" "nodepool_disk_high" {
         AND resource.labels.cluster_name = "${var.cluster_name}"
         AND resource.labels.project_id = "${var.project_id}"
         AND metric.type = "kubernetes.io/node/ephemeral_storage/allocatable_utilization"
-        AND metadata.user_labels."cloud.google.com/gke-nodepool" = "${var.nodepool_name}"
+        AND metadata.user_labels.tenant_nar_id = "${var.tenant_nar_id}"
       EOT
 
-      duration   = "600s"
-      comparison = "COMPARISON_GT"
+      duration        = "300s"
+      comparison      = "COMPARISON_GT"
       threshold_value = 0.8
 
       aggregations {
-        alignment_period     = "60s"
-        per_series_aligner   = "ALIGN_MEAN"
-        cross_series_reducer = "REDUCE_MAX"
-        group_by_fields      = [
-          "resource.labels.cluster_name",
-          "metadata.user_labels.\"cloud.google.com/gke-nodepool\""
-        ]
+        alignment_period   = "60s"
+        per_series_aligner = "ALIGN_MEAN"
       }
 
       trigger {
@@ -457,54 +236,36 @@ resource "google_monitoring_alert_policy" "nodepool_disk_high" {
   }
 
   user_labels = {
-    severity    = "warning"
-    component   = "gke"
-    nodepool    = var.nodepool_name
-    cluster     = var.cluster_name
-    project     = var.project_id
-    environment = "production"
-    alert_type  = "aggregate"
+    severity      = "warning"
+    tenant_nar_id = var.tenant_nar_id
+    alert_type    = "node_disk"
+    managed_by    = "terraform"
   }
 }
 
-# Outputs
-output "cpu_high_alert_id" {
-  description = "ID of the CPU high utilization alert policy (average)"
+# ====================================================================
+# OUTPUTS
+# ====================================================================
+output "cpu_alert_policy_id" {
+  description = "CPU alert policy ID"
   value       = google_monitoring_alert_policy.nodepool_cpu_high.id
 }
 
-output "cpu_high_single_node_alert_id" {
-  description = "ID of the CPU high single node alert policy"
-  value       = google_monitoring_alert_policy.nodepool_cpu_high_single_node.id
-}
-
-output "memory_high_alert_id" {
-  description = "ID of the memory high utilization alert policy (average)"
+output "memory_alert_policy_id" {
+  description = "Memory alert policy ID"
   value       = google_monitoring_alert_policy.nodepool_memory_high.id
 }
 
-output "memory_high_single_node_alert_id" {
-  description = "ID of the memory high single node alert policy"
-  value       = google_monitoring_alert_policy.nodepool_memory_high_single_node.id
-}
-
-output "cpu_critical_alert_id" {
-  description = "ID of the CPU critical utilization alert policy (maximum)"
-  value       = google_monitoring_alert_policy.nodepool_cpu_critical.id
-}
-
-output "memory_critical_alert_id" {
-  description = "ID of the memory critical utilization alert policy (maximum)"
-  value       = google_monitoring_alert_policy.nodepool_memory_critical.id
-}
-
-output "disk_high_alert_id" {
-  description = "ID of the disk high utilization alert policy (maximum)"
+output "disk_alert_policy_id" {
+  description = "Disk alert policy ID"
   value       = google_monitoring_alert_policy.nodepool_disk_high.id
 }
-```
 
-**Email notification will now show:**
-```
-Project: my-project-123 | Cluster: prod-cluster | Nodepool: production-pool
-Average CPU utilization across nodepool has exceeded 80% for more than 10 minutes.
+output "alert_policy_names" {
+  description = "All alert policy display names"
+  value = [
+    google_monitoring_alert_policy.nodepool_cpu_high.display_name,
+    google_monitoring_alert_policy.nodepool_memory_high.display_name,
+    google_monitoring_alert_policy.nodepool_disk_high.display_name
+  ]
+}
