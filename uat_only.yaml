@@ -1,0 +1,26 @@
+name: Deploy Test Automation and Fetch Test Report
+
+on:
+  workflow_dispatch:
+  pull_request:
+    types: [closed]
+    branches:
+      - uat
+    paths:
+      - 'app_manifest/eod-test-automation-runner/Chart.yaml'
+
+jobs:
+  deploy:
+    name: Deploy Test Automation
+    runs-on: uat
+    if: |
+      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/uat') ||
+      (github.event_name == 'pull_request' && 
+       github.event.pull_request.merged == true && 
+       github.event.pull_request.base.ref == 'uat')
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
