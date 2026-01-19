@@ -1,5 +1,4 @@
-name: Deploy Test Automation and Fetch Test Report
-
+name: Deploy Test Automation 
 on:
   workflow_dispatch:
   pull_request:
