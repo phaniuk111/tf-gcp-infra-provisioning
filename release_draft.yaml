@@ -43,7 +43,7 @@ jobs:
             
             echo "Processing: ${IMAGE_NAME} - ${IMAGE_TAG}"
             
-            # Get tag ref via GitHub API (lightweight tag points directly to commit)
+            # Get tag ref via GitHub API
             TAG_REF=$(curl -s \
               -H "Accept: application/vnd.github+json" \
               -H "Authorization: Bearer $GITHUB_TOKEN" \
@@ -87,6 +87,15 @@ jobs:
           BODY="## ${RELEASE_NAME}
 
           **Released:** ${START_DATE}
+
+          ---
+
+          ## Change Tickets
+
+          | Environment | CHG Ticket | Release Ticket |
+          |-------------|------------|----------------|
+          | PRL1        | _TBD_      | _TBD_          |
+          | PRD         | _TBD_      | _TBD_          |
 
           ---
 
