@@ -14,6 +14,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Needed to access all tags and commits
 
       - name: Create Release Draft
         env:
@@ -28,12 +30,39 @@ jobs:
           RELEASE_DATE=$(echo "$START_DATE" | cut -d' ' -f1)
           TAG_NAME="release-${RELEASE_DATE}"
           
-          # Build artefacts table
-          ARTEFACTS_TABLE="| Image | Tag |\n|-------|-----|\n"
+          # Build artefacts table with git tag details
+          ARTEFACTS_TABLE="| Image | Tag | Commit | Author | Date |\n|-------|-----|--------|--------|------|\n"
+          ARTEFACT_DETAILS=""
+          
           while read -r artifact_url; do
             IMAGE_NAME=$(echo "$artifact_url" | sed 's|.*/||' | cut -d: -f1)
             IMAGE_TAG=$(echo "$artifact_url" | sed 's|.*:||')
-            ARTEFACTS_TABLE="${ARTEFACTS_TABLE}| ${IMAGE_NAME} | \`${IMAGE_TAG}\` |\n"
+            
+            # Get git tag info
+            GIT_TAG=$(git tag -l "${IMAGE_TAG}" 2>/dev/null || echo "")
+            
+            if [ -n "$GIT_TAG" ]; then
+              COMMIT_SHA=$(git rev-list -n 1 "$GIT_TAG" 2>/dev/null)
+              COMMIT_SHORT=${COMMIT_SHA:0:7}
+              COMMIT_MSG=$(git log -1 --format=%s "$GIT_TAG" 2>/dev/null)
+              COMMIT_AUTHOR=$(git log -1 --format=%an "$GIT_TAG" 2>/dev/null)
+              COMMIT_DATE=$(git log -1 --format=%cs "$GIT_TAG" 2>/dev/null)
+              
+              ARTEFACTS_TABLE="${ARTEFACTS_TABLE}| ${IMAGE_NAME} | \`${IMAGE_TAG}\` | \`${COMMIT_SHORT}\` | ${COMMIT_AUTHOR} | ${COMMIT_DATE} |\n"
+              
+              # Detailed section
+              ARTEFACT_DETAILS="${ARTEFACT_DETAILS}### ${IMAGE_NAME}\n"
+              ARTEFACT_DETAILS="${ARTEFACT_DETAILS}- **Tag:** \`${IMAGE_TAG}\`\n"
+              ARTEFACT_DETAILS="${ARTEFACT_DETAILS}- **Commit:** \`${COMMIT_SHORT}\`\n"
+              ARTEFACT_DETAILS="${ARTEFACT_DETAILS}- **Message:** ${COMMIT_MSG}\n"
+              ARTEFACT_DETAILS="${ARTEFACT_DETAILS}- **Author:** ${COMMIT_AUTHOR}\n"
+              ARTEFACT_DETAILS="${ARTEFACT_DETAILS}- **Date:** ${COMMIT_DATE}\n\n"
+            else
+              ARTEFACTS_TABLE="${ARTEFACTS_TABLE}| ${IMAGE_NAME} | \`${IMAGE_TAG}\` | - | - | - |\n"
+              ARTEFACT_DETAILS="${ARTEFACT_DETAILS}### ${IMAGE_NAME}\n"
+              ARTEFACT_DETAILS="${ARTEFACT_DETAILS}- **Tag:** \`${IMAGE_TAG}\`\n"
+              ARTEFACT_DETAILS="${ARTEFACT_DETAILS}- **Commit:** _Tag not found in git_\n\n"
+            fi
           done < <(jq -r '.artefact[]' $JSON_FILE)
           
           # Build release body
@@ -51,7 +80,13 @@ jobs:
 
           ## Artefacts
 
-          $(echo -e "$ARTEFACTS_TABLE")"
+          $(echo -e "$ARTEFACTS_TABLE")
+
+          ---
+
+          ## Artefact Details
+
+          $(echo -e "$ARTEFACT_DETAILS")"
           
           # Escape for JSON
           BODY_ESCAPED=$(echo "$BODY" | jq -Rs .)
@@ -71,7 +106,6 @@ jobs:
               \"prerelease\": false
             }"
           
-          # Output summary
           echo "## ✅ Release Draft Created" >> $GITHUB_STEP_SUMMARY
           echo "**Release:** $RELEASE_NAME" >> $GITHUB_STEP_SUMMARY
           echo "**Tag:** $TAG_NAME" >> $GITHUB_STEP_SUMMARY
