@@ -14,14 +14,14 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0  # Needed to access all tags and commits
 
-      - name: Create Release Draft
+      - name: Create or Update Release Draft
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           JSON_FILE=".github/release/release_details.json"
+          REPO="${{ github.repository }}"
+          API_BASE="https://api.github.com/repos/${REPO}"
           
           # Parse JSON
           RELEASE_NAME=$(jq -r '.release_name' $JSON_FILE)
@@ -30,7 +30,10 @@ jobs:
           RELEASE_DATE=$(echo "$START_DATE" | cut -d' ' -f1)
           TAG_NAME="release-${RELEASE_DATE}"
           
-          # Build artefacts table with git tag details
+          echo "=== Processing Release: ${RELEASE_NAME} ==="
+          echo "Tag: ${TAG_NAME}"
+          
+          # Build artefacts using GitHub API
           ARTEFACTS_TABLE="| Image | Tag | Commit | Author | Date |\n|-------|-----|--------|--------|------|\n"
           ARTEFACT_DETAILS=""
           
@@ -38,19 +41,33 @@ jobs:
             IMAGE_NAME=$(echo "$artifact_url" | sed 's|.*/||' | cut -d: -f1)
             IMAGE_TAG=$(echo "$artifact_url" | sed 's|.*:||')
             
-            # Get git tag info
-            GIT_TAG=$(git tag -l "${IMAGE_TAG}" 2>/dev/null || echo "")
+            echo "Processing: ${IMAGE_NAME} - ${IMAGE_TAG}"
             
-            if [ -n "$GIT_TAG" ]; then
-              COMMIT_SHA=$(git rev-list -n 1 "$GIT_TAG" 2>/dev/null)
+            # Get tag ref via GitHub API (lightweight tag points directly to commit)
+            TAG_REF=$(curl -s \
+              -H "Accept: application/vnd.github+json" \
+              -H "Authorization: Bearer $GITHUB_TOKEN" \
+              "${API_BASE}/git/refs/tags/${IMAGE_TAG}")
+            
+            COMMIT_SHA=$(echo "$TAG_REF" | jq -r '.object.sha // empty')
+            
+            if [ -n "$COMMIT_SHA" ] && [ "$COMMIT_SHA" != "null" ]; then
               COMMIT_SHORT=${COMMIT_SHA:0:7}
-              COMMIT_MSG=$(git log -1 --format=%s "$GIT_TAG" 2>/dev/null)
-              COMMIT_AUTHOR=$(git log -1 --format=%an "$GIT_TAG" 2>/dev/null)
-              COMMIT_DATE=$(git log -1 --format=%cs "$GIT_TAG" 2>/dev/null)
+              
+              # Get commit details
+              COMMIT_INFO=$(curl -s \
+                -H "Accept: application/vnd.github+json" \
+                -H "Authorization: Bearer $GITHUB_TOKEN" \
+                "${API_BASE}/commits/${COMMIT_SHA}")
+              
+              COMMIT_MSG=$(echo "$COMMIT_INFO" | jq -r '.commit.message' | head -1)
+              COMMIT_AUTHOR=$(echo "$COMMIT_INFO" | jq -r '.commit.author.name')
+              COMMIT_DATE=$(echo "$COMMIT_INFO" | jq -r '.commit.author.date' | cut -dT -f1)
+              
+              echo "✅ Found: ${COMMIT_SHORT} - ${COMMIT_MSG}"
               
               ARTEFACTS_TABLE="${ARTEFACTS_TABLE}| ${IMAGE_NAME} | \`${IMAGE_TAG}\` | \`${COMMIT_SHORT}\` | ${COMMIT_AUTHOR} | ${COMMIT_DATE} |\n"
               
-              # Detailed section
               ARTEFACT_DETAILS="${ARTEFACT_DETAILS}### ${IMAGE_NAME}\n"
               ARTEFACT_DETAILS="${ARTEFACT_DETAILS}- **Tag:** \`${IMAGE_TAG}\`\n"
               ARTEFACT_DETAILS="${ARTEFACT_DETAILS}- **Commit:** \`${COMMIT_SHORT}\`\n"
@@ -58,14 +75,15 @@ jobs:
               ARTEFACT_DETAILS="${ARTEFACT_DETAILS}- **Author:** ${COMMIT_AUTHOR}\n"
               ARTEFACT_DETAILS="${ARTEFACT_DETAILS}- **Date:** ${COMMIT_DATE}\n\n"
             else
+              echo "❌ Tag not found: ${IMAGE_TAG}"
               ARTEFACTS_TABLE="${ARTEFACTS_TABLE}| ${IMAGE_NAME} | \`${IMAGE_TAG}\` | - | - | - |\n"
               ARTEFACT_DETAILS="${ARTEFACT_DETAILS}### ${IMAGE_NAME}\n"
               ARTEFACT_DETAILS="${ARTEFACT_DETAILS}- **Tag:** \`${IMAGE_TAG}\`\n"
-              ARTEFACT_DETAILS="${ARTEFACT_DETAILS}- **Commit:** _Tag not found in git_\n\n"
+              ARTEFACT_DETAILS="${ARTEFACT_DETAILS}- **Commit:** _Tag not found_\n\n"
             fi
           done < <(jq -r '.artefact[]' $JSON_FILE)
           
-          # Build release body
+          # Build body
           BODY="## ${RELEASE_NAME}
 
           **Released:** ${START_DATE}
@@ -88,24 +106,58 @@ jobs:
 
           $(echo -e "$ARTEFACT_DETAILS")"
           
-          # Escape for JSON
           BODY_ESCAPED=$(echo "$BODY" | jq -Rs .)
           
-          # Create release via GitHub API
-          curl -X POST \
+          # Check if release with this tag already exists
+          echo "=== Checking for existing release ==="
+          EXISTING_RELEASE=$(curl -s \
             -H "Accept: application/vnd.github+json" \
             -H "Authorization: Bearer $GITHUB_TOKEN" \
-            -H "X-GitHub-Api-Version: 2022-11-28" \
-            https://api.github.com/repos/${{ github.repository }}/releases \
-            -d "{
-              \"tag_name\": \"${TAG_NAME}\",
-              \"target_commitish\": \"${{ github.sha }}\",
-              \"name\": \"${RELEASE_NAME}\",
-              \"body\": ${BODY_ESCAPED},
-              \"draft\": true,
-              \"prerelease\": false
-            }"
+            "${API_BASE}/releases/tags/${TAG_NAME}")
           
-          echo "## ✅ Release Draft Created" >> $GITHUB_STEP_SUMMARY
-          echo "**Release:** $RELEASE_NAME" >> $GITHUB_STEP_SUMMARY
-          echo "**Tag:** $TAG_NAME" >> $GITHUB_STEP_SUMMARY
+          RELEASE_ID=$(echo "$EXISTING_RELEASE" | jq -r '.id // empty')
+          IS_DRAFT=$(echo "$EXISTING_RELEASE" | jq -r '.draft // empty')
+          
+          if [ -n "$RELEASE_ID" ] && [ "$RELEASE_ID" != "null" ]; then
+            if [ "$IS_DRAFT" = "true" ]; then
+              echo "📝 Updating existing draft (ID: ${RELEASE_ID})"
+              
+              curl -s -X PATCH \
+                -H "Accept: application/vnd.github+json" \
+                -H "Authorization: Bearer $GITHUB_TOKEN" \
+                -H "X-GitHub-Api-Version: 2022-11-28" \
+                "${API_BASE}/releases/${RELEASE_ID}" \
+                -d "{
+                  \"name\": \"${RELEASE_NAME}\",
+                  \"body\": ${BODY_ESCAPED},
+                  \"draft\": true,
+                  \"prerelease\": false
+                }"
+              
+              echo "## ✅ Release Draft Updated" >> $GITHUB_STEP_SUMMARY
+            else
+              echo "⚠️ Release already published - skipping"
+              echo "## ⚠️ Release Already Published" >> $GITHUB_STEP_SUMMARY
+            fi
+          else
+            echo "🆕 Creating new draft release"
+            
+            curl -s -X POST \
+              -H "Accept: application/vnd.github+json" \
+              -H "Authorization: Bearer $GITHUB_TOKEN" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              "${API_BASE}/releases" \
+              -d "{
+                \"tag_name\": \"${TAG_NAME}\",
+                \"target_commitish\": \"${{ github.sha }}\",
+                \"name\": \"${RELEASE_NAME}\",
+                \"body\": ${BODY_ESCAPED},
+                \"draft\": true,
+                \"prerelease\": false
+              }"
+            
+            echo "## ✅ Release Draft Created" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          echo "**Release:** ${RELEASE_NAME}" >> $GITHUB_STEP_SUMMARY
+          echo "**Tag:** ${TAG_NAME}" >> $GITHUB_STEP_SUMMARY
