@@ -1,0 +1,34 @@
+graph TD
+    A[Start] --> B[Create Feature Branch<br>from main]
+    B --> C[Run Claim Slot Workflow]
+    C --> D[Workflow creates PR<br>to update slot-assignment.yml]
+    D --> E{PR Merged?}
+    E -- Yes --> F[Slot Assigned!]
+    E -- No --> D
+    
+    subgraph SLOT [Isolated Development in a Slot]
+        F --> G[Develop & Push Code<br>to Feature Branch]
+        G --> H(CI/CD Pipeline Triggered)
+        H --> I[Builds Container Image<br>Deploys to Isolated DEV]
+        I --> J[Tests run using<br>dedicated Dataset & DAGs]
+        J --> K{Ready for<br>Isolated UAT?}
+        K -- No --> G
+        K -- Yes --> L[Trigger Deploy to<br>Isolated UAT Workflow]
+        L --> M[Promotes build to<br>Isolated UAT]
+        M --> N{UAT Testing<br>Passed?}
+        N -- No --> G
+    end
+    
+    N -- Yes --> O[Merge Feature Branch<br>to shared dev branch]
+    
+    subgraph RELEASE [Standard Integration & Release]
+        O --> P[Run Release Slot Workflow]
+        P --> Q[Standard Promotion Pipeline<br>dev to uat to prd]
+    end
+    
+    Q --> R[End]
+    
+    style A fill:#90EE90
+    style R fill:#FF9999
+    style F fill:#87CEEB
+    style O fill:#FFD700
