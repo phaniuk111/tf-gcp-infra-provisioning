@@ -1,0 +1,63 @@
+graph TD
+    A[Start] --> B[Create Feature Branch<br>from dev]
+    B --> C[Develop & Push Code<br>to Feature Branch]
+    C --> D(CI Pipeline Triggered)
+    D --> E[Build & Unit Tests]
+    E --> F{Tests Passed?}
+    F -- No --> C
+    F -- Yes --> G[Create PR to dev]
+    
+    G --> H{Code Review<br>Approved?}
+    H -- No --> C
+    H -- Yes --> I[Merge to dev branch]
+    
+    subgraph DEV [Shared DEV Environment]
+        I --> J[CD Pipeline Deploys<br>to Shared DEV]
+        J --> K[Integration Tests<br>on Shared Dataset]
+        K --> L{DEV Testing<br>Passed?}
+        L -- No --> M[Fix on Feature Branch]
+    end
+    
+    M --> C
+    L -- Yes --> N[Create PR to uat]
+    
+    subgraph UAT [Shared UAT Environment]
+        N --> O{PR Approved?}
+        O -- No --> M
+        O -- Yes --> P[Merge to uat branch]
+        P --> Q[CD Pipeline Deploys<br>to Shared UAT]
+        Q --> R[UAT Testing]
+        R --> S{UAT Passed?}
+        S -- No --> M
+    end
+    
+    S -- Yes --> T[Create PR to prl1]
+    
+    subgraph PRL1 [PRL1 Pre-Production]
+        T --> U{PR Approved?}
+        U -- No --> M
+        U -- Yes --> V[Merge to prl1 branch]
+        V --> W[Deploy to PRL1]
+        W --> X[Pre-Prod Validation]
+        X --> Y{PRL1 Passed?}
+        Y -- No --> M
+    end
+    
+    Y -- Yes --> Z[Create PR to prd]
+    
+    subgraph PRD [Production]
+        Z --> AA{Change Approval?}
+        AA -- No --> AB[Address Feedback]
+        AB --> Z
+        AA -- Yes --> AC[Merge to prd]
+        AC --> AD[Deploy to Production]
+    end
+    
+    AD --> AE[End]
+    
+    style A fill:#90EE90
+    style AE fill:#90EE90
+    style I fill:#87CEEB
+    style P fill:#FFD700
+    style V fill:#FFA500
+    style AC fill:#FF6B6B
