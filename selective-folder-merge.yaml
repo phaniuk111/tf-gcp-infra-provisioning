@@ -1,0 +1,112 @@
+name: Selective Folder Merge (Reusable)
+
+on:
+  workflow_call:
+    inputs:
+      source_branch:
+        description: 'Source branch'
+        required: true
+        type: string
+      target_branch:
+        description: 'Target branch'
+        required: true
+        type: string
+      folder_path:
+        description: 'Folder path to merge'
+        required: true
+        type: string
+    secrets:
+      token:
+        required: true
+
+jobs:
+  selective-merge:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.token }}
+          
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          
+      - name: Create new branch from target
+        id: create-branch
+        run: |
+          git fetch origin ${{ inputs.target_branch }}
+          git checkout ${{ inputs.target_branch }}
+          TIMESTAMP=$(date +%Y%m%d-%H%M%S)
+          FOLDER_SLUG=$(echo "${{ inputs.folder_path }}" | sed 's/\//-/g')
+          NEW_BRANCH="merge-${FOLDER_SLUG}-${TIMESTAMP}"
+          git checkout -b $NEW_BRANCH
+          echo "branch_name=$NEW_BRANCH" >> $GITHUB_OUTPUT
+          
+      - name: Copy specific folder from source
+        run: |
+          git fetch origin ${{ inputs.source_branch }}
+          git checkout origin/${{ inputs.source_branch }} -- ${{ inputs.folder_path }}
+          
+      - name: Commit changes
+        id: commit
+        run: |
+          if git diff --staged --quiet; then
+            echo "has_changes=false" >> $GITHUB_OUTPUT
+            echo "❌ No changes detected in ${{ inputs.folder_path }}"
+            exit 1
+          fi
+          
+          git add ${{ inputs.folder_path }}
+          git commit -m "Merge ${{ inputs.folder_path }} from ${{ inputs.source_branch }} to ${{ inputs.target_branch }}"
+          echo "has_changes=true" >> $GITHUB_OUTPUT
+          
+      - name: Push branch
+        if: steps.commit.outputs.has_changes == 'true'
+        run: |
+          git push origin ${{ steps.create-branch.outputs.branch_name }}
+          
+      - name: Create Pull Request
+        if: steps.commit.outputs.has_changes == 'true'
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.token }}
+          script: |
+            const { data: pr } = await github.rest.pulls.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `Merge ${{ inputs.folder_path }} from ${{ inputs.source_branch }}`,
+              head: '${{ steps.create-branch.outputs.branch_name }}',
+              base: '${{ inputs.target_branch }}',
+              body: `## Selective Folder Merge
+              
+              **Folder:** \`${{ inputs.folder_path }}\`
+              **Source Branch:** \`${{ inputs.source_branch }}\`
+              **Target Branch:** \`${{ inputs.target_branch }}\`
+              
+              ---
+              
+              This PR merges only the specified folder without affecting other open PRs.
+              
+              ✅ Safe to merge independently
+              
+              _Automated by GitHub Actions_`
+            });
+            
+            console.log(`✅ Pull Request created: #${pr.number}`);
+            console.log(`URL: ${pr.html_url}`);
+            
+            core.summary
+              .addHeading('Pull Request Created')
+              .addLink(`PR #${pr.number}`, pr.html_url)
+              .addTable([
+                [{data: 'Property', header: true}, {data: 'Value', header: true}],
+                ['PR Number', `#${pr.number}`],
+                ['Source Branch', '${{ inputs.source_branch }}'],
+                ['Target Branch', '${{ inputs.target_branch }}'],
+                ['Folder Path', '${{ inputs.folder_path }}'],
+                ['New Branch', '${{ steps.create-branch.outputs.branch_name }}']
+              ])
+              .write();
