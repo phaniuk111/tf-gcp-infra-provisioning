@@ -1,0 +1,50 @@
+name: Fetch Jira Ticket
+
+on:
+  workflow_dispatch:
+    inputs:
+      ticket_id:
+        description: 'Jira Ticket ID'
+        required: true
+        default: 'EOD-1233'
+
+jobs:
+  get-jira-credentials:
+    uses: ./.github/workflows/fetch-gcp-secret.yml
+    with:
+      secret_id: 'your-gcp-project-id/jira-credentials'
+      wif_provider: 'projects/PROJECT_NUM/locations/global/workloadIdentityPools/POOL/providers/PROVIDER'
+      service_account: 'sa-name@your-project.iam.gserviceaccount.com'
+    permissions:
+      contents: read
+      id-token: write
+
+  fetch-jira-ticket:
+    needs: get-jira-credentials
+    runs-on: ubuntu-latest
+    steps:
+      - name: Get Jira Ticket Title
+        env:
+          JIRA_AUTH: ${{ needs.get-jira-credentials.outputs.secret_value }}
+        run: |
+          TICKET_ID="${{ github.event.inputs.ticket_id }}"
+          JIRA_BASE_URL="https://your-domain.atlassian.net"
+
+          RESPONSE=$(curl -s -w "\n%{http_code}" \
+            -H "Authorization: Basic ${JIRA_AUTH}" \
+            -H "Content-Type: application/json" \
+            "${JIRA_BASE_URL}/rest/api/2/issue/${TICKET_ID}?fields=summary")
+
+          HTTP_CODE=$(echo "$RESPONSE" | tail -1)
+          BODY=$(echo "$RESPONSE" | sed '$d')
+
+          if [ "$HTTP_CODE" -ne 200 ]; then
+            echo "❌ Failed to fetch ticket. HTTP: $HTTP_CODE"
+            echo "$BODY"
+            exit 1
+          fi
+
+          TITLE=$(echo "$BODY" | jq -r '.fields.summary')
+          echo "## 🎫 ${TICKET_ID}" >> $GITHUB_STEP_SUMMARY
+          echo "**Title:** ${TITLE}" >> $GITHUB_STEP_SUMMARY
+          echo "✅ ${TICKET_ID} — ${TITLE}"
