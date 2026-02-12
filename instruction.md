@@ -1,0 +1,7 @@
+description: 'Review rules for release JSON files under .github/release directory'
+applyTo: '.github/release/**'
+When performing a code review on release_details.json, verify that each entry in the artefact array uses a colon (:) to separate the image name from the tag. For example, the URL should end with eod-cco-message-consumer:0.12.1421 and not eod-cco-message-consumer0.12.1421. Flag any artefact entry missing the colon separator.
+When performing a code review on release_details.json, verify that all required fields are present and non-empty: release_name, start_date, end_date, change_initiator, change_summary, change_description, change_reason, associated_risk, consequence, user_service_impact, and artefact. The artefact array must contain at least one entry.
+When performing a code review on release_details.json, verify that start_date and end_date are in GMT and follow the format YYYY-MM-DD HH:MM:SS. The end_date must be at least 24 hours after the start_date.
+When performing a code review that modifies release_details.json, check that previous_release_tags.json is also updated in the same PR. For every service with a new tag in the artefact array of release_details.json, the corresponding entry in previous_release_tags.json must be updated to reflect the old tag being replaced.
+When performing a code review on a release PR, verify that the PR is raised at least 24 hours before the start_date specified in release_details.json. All times should be in GMT.
