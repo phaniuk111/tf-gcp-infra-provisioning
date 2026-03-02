@@ -1,0 +1,217 @@
+name: xxx Namespace - Image Update Monitor
+
+on:
+  schedule:
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+
+env:
+  GKE_CLUSTER: your-cluster-name
+  GKE_REGION: europe-west2
+  GCP_PROJECT_ID: your-project-id
+  NAMESPACE: xxx
+
+jobs:
+  check-deployments:
+    name: Check for Image Updates in xxx
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Authenticate to GCP
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
+          service_account: ${{ secrets.WIF_SERVICE_ACCOUNT }}
+
+      - name: Set up GKE credentials
+        uses: google-github-actions/get-gke-credentials@v2
+        with:
+          cluster_name: ${{ env.GKE_CLUSTER }}
+          location: ${{ env.GKE_REGION }}
+
+      - name: Check for Image Updates
+        id: check
+        run: |
+          FOUND_UPDATES=false
+          DETECTED_AT=$(date -u +"%Y-%m-%d %H:%M:%S UTC")
+          CUTOFF_TIME=$(date -u -d "15 minutes ago" +%Y-%m-%dT%H:%M:%SZ)
+          BLOCKS="[]"
+
+          echo "Checking deployments in namespace: xxx"
+          echo "Window: $CUTOFF_TIME → now"
+
+          for DEPLOYMENT in $(kubectl get deployments -n ${{ env.NAMESPACE }} \
+              -o jsonpath='{.items[*].metadata.name}'); do
+
+            echo "🔍 Checking $DEPLOYMENT..."
+
+            # Current revision number
+            CURRENT_REVISION=$(kubectl get deployment "$DEPLOYMENT" \
+              -n ${{ env.NAMESPACE }} \
+              -o jsonpath='{.metadata.annotations.deployment\.kubernetes\.io/revision}')
+
+            # Get current ReplicaSet creation time
+            RS_CREATED=$(kubectl get replicasets -n ${{ env.NAMESPACE }} \
+              -o json | \
+              jq -r --arg dep "$DEPLOYMENT" \
+              --arg rev "$CURRENT_REVISION" \
+              '.items[] | select(
+                .metadata.ownerReferences[]?.name == $dep and
+                .metadata.annotations["deployment.kubernetes.io/revision"] == $rev
+              ) | .metadata.creationTimestamp')
+
+            # Skip if not deployed in last 15 mins
+            if [[ "$RS_CREATED" < "$CUTOFF_TIME" ]]; then
+              echo "   ⏭️  No recent deployment (last at $RS_CREATED)"
+              continue
+            fi
+
+            echo "   ✅ Deployed at $RS_CREATED — within window!"
+
+            # Current image
+            CURRENT_IMAGE=$(kubectl get deployment "$DEPLOYMENT" \
+              -n ${{ env.NAMESPACE }} \
+              -o jsonpath='{.spec.template.spec.containers[*].image}')
+
+            # Previous image
+            PREVIOUS_REVISION=$((CURRENT_REVISION - 1))
+            if [ "$PREVIOUS_REVISION" -ge 1 ]; then
+              PREVIOUS_IMAGE=$(kubectl get replicasets -n ${{ env.NAMESPACE }} \
+                -o json | \
+                jq -r --arg dep "$DEPLOYMENT" \
+                --arg rev "$PREVIOUS_REVISION" \
+                '.items[] | select(
+                  .metadata.ownerReferences[]?.name == $dep and
+                  .metadata.annotations["deployment.kubernetes.io/revision"] == $rev
+                ) | .spec.template.spec.containers[].image')
+            else
+              PREVIOUS_IMAGE="<first deployment>"
+            fi
+
+            # GKE Console deep link
+            GKE_LINK="https://console.cloud.google.com/kubernetes/deployment/${{ env.GKE_REGION }}/${{ env.GKE_CLUSTER }}/${{ env.NAMESPACE }}/${DEPLOYMENT}/overview?project=${{ env.GCP_PROJECT_ID }}"
+
+            FOUND_UPDATES=true
+
+            # Build Adaptive Card block for this deployment
+            BLOCK=$(jq -n \
+              --arg dep "$DEPLOYMENT" \
+              --arg old "$PREVIOUS_IMAGE" \
+              --arg new "$CURRENT_IMAGE" \
+              --arg rev "Rev $PREVIOUS_REVISION → $CURRENT_REVISION" \
+              --arg time "$RS_CREATED" \
+              --arg link "$GKE_LINK" \
+              '{
+                "type": "Container",
+                "style": "default",
+                "spacing": "Medium",
+                "separator": true,
+                "items": [
+                  {
+                    "type": "FactSet",
+                    "facts": [
+                      {"title": "Deployment", "value": $dep},
+                      {"title": "Revision",   "value": $rev},
+                      {"title": "Old Image",  "value": $old},
+                      {"title": "New Image",  "value": $new},
+                      {"title": "Deployed At","value": $time}
+                    ]
+                  },
+                  {
+                    "type": "ActionSet",
+                    "actions": [
+                      {
+                        "type": "Action.OpenUrl",
+                        "title": "🔗 Open in GKE Console",
+                        "url": $link
+                      }
+                    ]
+                  }
+                ]
+              }')
+
+            BLOCKS=$(echo "$BLOCKS" | jq --argjson block "$BLOCK" '. += [$block]')
+
+          done
+
+          echo "found_updates=$FOUND_UPDATES" >> $GITHUB_OUTPUT
+
+          # Build final Teams payload
+          TEAMS_PAYLOAD=$(jq -n \
+            --arg cluster "${{ env.GKE_CLUSTER }}" \
+            --arg namespace "${{ env.NAMESPACE }}" \
+            --arg detected_at "$DETECTED_AT" \
+            --argjson blocks "$BLOCKS" \
+            '{
+              "type": "message",
+              "attachments": [
+                {
+                  "contentType": "application/vnd.microsoft.card.adaptive",
+                  "content": {
+                    "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
+                    "type": "AdaptiveCard",
+                    "version": "1.4",
+                    "body": [
+                      {
+                        "type": "Container",
+                        "style": "emphasis",
+                        "items": [
+                          {
+                            "type": "TextBlock",
+                            "text": "🚀 xxx Image Update Detected",
+                            "weight": "Bolder",
+                            "size": "Large",
+                            "color": "Attention",
+                            "wrap": true
+                          },
+                          {
+                            "type": "TextBlock",
+                            "text": ("Cluster: **" + $cluster + "** | Namespace: **" + $namespace + "**"),
+                            "spacing": "None",
+                            "isSubtle": true,
+                            "wrap": true
+                          }
+                        ]
+                      }
+                    ] + $blocks + [
+                      {
+                        "type": "Container",
+                        "style": "emphasis",
+                        "spacing": "Medium",
+                        "items": [
+                          {
+                            "type": "TextBlock",
+                            "text": ("🕐 Detected At: " + $detected_at),
+                            "isSubtle": true,
+                            "size": "Small",
+                            "wrap": true
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                }
+              ]
+            }')
+
+          echo "teams_payload<<EOF" >> $GITHUB_OUTPUT
+          echo "$TEAMS_PAYLOAD" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Send to MS Teams
+        if: steps.check.outputs.found_updates == 'true'
+        run: |
+          curl -s -X POST '${{ secrets.TEAMS_WEBHOOK_URL }}' \
+            -H 'Content-Type: application/json' \
+            -d '${{ steps.check.outputs.teams_payload }}'
+
+      - name: Job Summary
+        run: |
+          if [ "${{ steps.check.outputs.found_updates }}" = "true" ]; then
+            echo "## 🔄 Image Updates Detected in \`xxx\`" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "## ✅ No image updates in \`xxx\` in the last 15 minutes" >> $GITHUB_STEP_SUMMARY
+          fi
