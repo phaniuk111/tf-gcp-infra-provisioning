@@ -21,6 +21,7 @@
   - [Step 6 — Check Istio mTLS Policy](#step-6--check-istio-mtls-policy)
 - [Fix Commands](#fix-commands)
 - [Error Code Reference](#error-code-reference)
+- [Where CA Validation Happens and Where to Find Logs](#where-ca-validation-happens-and-where-to-find-logs)
 
 ---
 
@@ -534,3 +535,152 @@ and GKE Ingress IP.     │
 > ⚠ `Verify return code: 0` from openssl **does NOT mean Java will succeed**.  
 > openssl uses the OS truststore. Java uses `$JAVA_HOME/lib/security/cacerts`.  
 > They are completely independent. Always check both.
+
+---
+
+## Where CA Validation Happens and Where to Find Logs
+
+### CA Validation Runs Entirely Inside Hadoop JVM
+
+This is the most important thing to understand about TLS handshake failures.
+
+```
+Hadoop JVM                         Istio Ingress Gateway
+    │                                       │
+    │─── ClientHello ──────────────────────►│
+    │◄── ServerHello + Certificate ─────────│
+    │                                       │
+    │  Certificate lands HERE in JVM        │
+    │  ─────────────────────────────        │
+    │  1. Read cert issuer field            │
+    │  2. Search own cacerts file           │
+    │  3. Build trust chain                 │
+    │  4. Verify signatures                 │
+    │  5. Check hostname vs SAN             │
+    │                                       │
+    │  ALL of this is LOCAL inside JVM      │
+    │  Istio has NO visibility into this    │
+    │                                       │
+    │  FAILS ❌                              │
+    │  SSLHandshakeException thrown         │
+    │                                       │
+    │─── alert_fatal ──────────────────────►│
+    │   (just a TCP close signal)           │
+    │   Istio does not know WHY             │
+```
+
+Istio only receives a connection close signal at the end. It has no idea the cert was rejected or why.
+
+---
+
+### Log Asymmetry — Hadoop vs Istio vs App Pod
+
+| Location | Hadoop Failure | Postman Success | Has the reason? |
+|----------|---------------|-----------------|-----------------|
+| **Hadoop JVM logs** | ✅ Full detail — cert chain, issuer, exact CA missing, stack trace | ✅ Connection OK | ✅ YES — debug here |
+| **Istio Ingress Gateway pod logs** | ⚠ Minimal — just sees connection closed, `DC` flag, TLS error | ✅ Access log entry with 200 | ❌ No reason why |
+| **App pod `istio-proxy` sidecar** | ❌ Empty — never reached | ✅ Access log entry | ❌ Not relevant |
+| **App pod container logs** | ❌ Empty — never reached | ✅ Request processed | ❌ Not relevant |
+
+---
+
+### Why Postman Shows a Log in GKE but Hadoop Does Not
+
+```
+Postman                    Istio Ingress              App Pod
+    │                           │                        │
+    │── TLS Handshake ─────────►│                        │
+    │   OS trusts cert ✅        │                        │
+    │── HTTP Request ──────────►│──── Forward ──────────►│
+    │                           │                   ✅ Log entry
+    │                           │                   written here
+
+Hadoop                     Istio Ingress              App Pod
+    │                           │                        │
+    │── TLS Handshake ─────────►│                        │
+    │   JVM rejects cert ❌      │                        │
+    │── alert_fatal ───────────►│                        X
+    │                           │                   ❌ Never reached
+    │                           │                   No log entry
+```
+
+Postman completes TLS → request reaches app pod → log written.  
+Hadoop fails TLS → connection closed at Istio → app pod never sees it.
+
+**Absence of GKE pod logs is itself confirmation the failure is at TLS layer.**
+
+---
+
+### Where to Look for Logs — Dedicated Istio Ingress Namespace
+
+Since you have a dedicated Istio Ingress Gateway in its own namespace, TLS termination happens there — not at the app pod sidecar.
+
+```bash
+# 1. Find ingress gateway pod
+kubectl get pods -n <your-istio-ingress-namespace>
+
+# 2. Check ingress gateway logs for TLS errors
+kubectl logs -n <your-istio-ingress-namespace> \
+  -l app=istio-ingressgateway \
+  | grep -i "tls\|ssl\|certificate\|handshake\|alert\|reset\|DC"
+
+# 3. Increase log level for more detail
+istioctl proxy-config log \
+  <ingress-gateway-pod> \
+  -n <your-istio-ingress-namespace> \
+  --level tls:debug,connection:debug
+
+# 4. Reset after debugging
+istioctl proxy-config log \
+  <ingress-gateway-pod> \
+  -n <your-istio-ingress-namespace> \
+  --level warning
+```
+
+You will see in Istio logs:
+```
+TLS error: CERTIFICATE_VERIFY_FAILED
+response_flags: DC     ← downstream connection terminated
+transport failure reason: TLS error
+```
+
+---
+
+### Primary Debug Target — Hadoop JVM Logs
+
+Istio only confirms a drop. **Hadoop logs tell you exactly why.**
+
+```cmd
+:: Enable on Hadoop — add to JVM args
+set HADOOP_OPTS=-Djavax.net.debug=ssl:handshake:verbose
+```
+
+You will see the full chain in Hadoop logs:
+
+```
+*** ClientHello, TLSv1.2
+
+*** ServerHello, TLSv1.2
+
+*** Certificate chain
+chain [0] = [
+  Subject: CN=prd-service.domain.com
+  Issuer:  CN=PRD-IntermediateCA
+]
+chain [1] = [
+  Subject: CN=PRD-IntermediateCA
+  Issuer:  CN=PRD-RootCA          ← JVM now searches cacerts for this
+]
+
+%% Invalidated session
+
+PKIX path building failed:
+unable to find valid certification path to trusted root
+                              ↑
+                    CN=PRD-RootCA not found in cacerts
+                    This is exactly what to import
+
+Alert: fatal, description = certificate_unknown
+```
+
+This tells you **exactly which CA is missing** — import that into `$JAVA_HOME/lib/security/cacerts` and the handshake will succeed.
