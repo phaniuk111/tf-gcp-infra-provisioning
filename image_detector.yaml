@@ -1,0 +1,217 @@
+name: EOD Deployment Image Monitor
+
+on:
+  schedule:
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  monitor:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Authenticate to GKE
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Setup kubectl
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          install_components: 'kubectl'
+
+      - name: Get GKE Credentials
+        run: |
+          gcloud container clusters get-credentials ${{ secrets.GKE_CLUSTER }} \
+            --region ${{ secrets.GKE_REGION }} \
+            --project ${{ secrets.GCP_PROJECT }}
+
+      - name: Check Image Changes
+        id: check
+        run: |
+
+          retry() {
+            local max=$1 delay=$2 attempt=1
+            shift 2
+            until "$@"; do
+              [ $attempt -ge $max ] && echo "❌ Failed after $max attempts" && return 1
+              echo "⚠️ Attempt $attempt/$max failed, retrying in ${delay}s..."
+              sleep $delay
+              attempt=$((attempt + 1))
+            done
+          }
+
+          kubectl_retry() { retry 3 5 kubectl "$@"; }
+
+          compare_semver() {
+            local a=${1#v} b=${2#v}
+            if [[ "$a" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] && \
+               [[ "$b" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+              local lower=$(printf '%s\n%s' "$a" "$b" | sort -V | head -1)
+              [ "$a" = "$b" ] && echo "same" && return
+              [ "$lower" = "$a" ] && echo "rollback" || echo "deploy"
+            else
+              echo "deploy"
+            fi
+          }
+
+          NAMESPACE="eod"
+          STATE_CM="eod-image-monitor-state"
+          CHANGED=()
+          FAILED=()
+
+          # ── Read state ─────────────────────────────────
+          STORED=$(kubectl_retry get configmap $STATE_CM \
+            -n $NAMESPACE \
+            -o jsonpath='{.data.state}' 2>/dev/null || echo '{}')
+          STORED=${STORED:-'{}'}
+          UPDATED_STATE="$STORED"
+
+          echo "📦 Loaded state: $(echo "$STORED" | jq 'keys | length') deployments"
+
+          # ── List deployments ───────────────────────────
+          DEPLOYMENTS=$(kubectl_retry get deployments \
+            -n $NAMESPACE \
+            -o jsonpath='{.items[*].metadata.name}') || {
+            echo "❌ Cannot list deployments — aborting"
+            exit 1
+          }
+
+          for DEPLOY in $DEPLOYMENTS; do
+
+            echo ""
+            echo "── $DEPLOY ───────────────────────────────"
+
+            # ── Main container image only ─────────────────
+            CURRENT_IMAGE=$(kubectl_retry get deploy "$DEPLOY" \
+              -n $NAMESPACE \
+              -o jsonpath='{.spec.template.spec.containers[0].image}') || {
+              echo "⚠️ $DEPLOY — fetch failed, skipping"
+              FAILED+=("$DEPLOY")
+              continue
+            }
+
+            [ -z "$CURRENT_IMAGE" ] && \
+              echo "⚠️ $DEPLOY — empty image, skipping" && \
+              FAILED+=("$DEPLOY") && continue
+
+            CURRENT_TAG=$(echo "$CURRENT_IMAGE" | cut -d: -f2)
+            STORED_TAG=$(echo "$STORED" | \
+              jq -r --arg d "$DEPLOY" '.[$d] // empty')
+
+            echo "🔍 stored: ${STORED_TAG:-none} | current: $CURRENT_TAG"
+
+            # ── No image change — skip ────────────────────
+            if [ "$CURRENT_TAG" = "$STORED_TAG" ]; then
+              echo "⏭️ unchanged"
+              continue
+            fi
+
+            # ── Image changed — detect type ───────────────
+            if [ -z "$STORED_TAG" ]; then
+              CHANGE_TYPE="🆕 FIRST DEPLOY"
+            else
+              RESULT=$(compare_semver "$CURRENT_TAG" "$STORED_TAG")
+              case $RESULT in
+                rollback) CHANGE_TYPE="⏪ ROLLBACK" ;;
+                *)        CHANGE_TYPE="🚀 DEPLOY"   ;;
+              esac
+            fi
+
+            # ── Health as extra info only ─────────────────
+            DESIRED=$(kubectl_retry get deploy "$DEPLOY" \
+              -n $NAMESPACE \
+              -o jsonpath='{.spec.replicas}' || echo "?")
+            READY=$(kubectl_retry get deploy "$DEPLOY" \
+              -n $NAMESPACE \
+              -o jsonpath='{.status.readyReplicas}' || echo "?")
+            READY=${READY:-0}
+
+            [ "$DESIRED" = "$READY" ] \
+              && HEALTH="✅ HEALTHY" \
+              || HEALTH="❌ UNHEALTHY"
+
+            echo "$CHANGE_TYPE | $HEALTH | pods: $READY/$DESIRED"
+
+            CHANGED+=("$DEPLOY|${STORED_TAG:-none}|$CURRENT_TAG|$CHANGE_TYPE|$HEALTH|$DESIRED|$READY")
+
+            UPDATED_STATE=$(echo "$UPDATED_STATE" | \
+              jq --arg d "$DEPLOY" --arg t "$CURRENT_TAG" '.[$d] = $t')
+
+          done
+
+          # ── Write state ────────────────────────────────
+          if [ "$UPDATED_STATE" != "$STORED" ]; then
+            kubectl create configmap $STATE_CM \
+              -n $NAMESPACE \
+              --from-literal=state="$UPDATED_STATE" \
+              --dry-run=client -o yaml | kubectl_retry apply -f -
+            echo "✅ ConfigMap updated"
+          else
+            echo "ℹ️ No state changes"
+          fi
+
+          TOTAL=$(( ${#CHANGED[@]} + ${#FAILED[@]} ))
+          [ "$TOTAL" -eq 0 ] \
+            && echo "skip_notify=true"  >> $GITHUB_OUTPUT \
+            || echo "skip_notify=false" >> $GITHUB_OUTPUT
+
+          echo "changed_count=${#CHANGED[@]}" >> $GITHUB_OUTPUT
+          echo "failed_count=${#FAILED[@]}"   >> $GITHUB_OUTPUT
+          printf '%s\n' "${CHANGED[@]}" > /tmp/changed.txt
+          printf '%s\n' "${FAILED[@]}"  > /tmp/failed.txt
+
+      - name: Send Teams Notification
+        if: steps.check.outputs.skip_notify == 'false'
+        run: |
+          TIMESTAMP=$(date -u '+%Y-%m-%d %H:%M UTC')
+          FACTS=""
+
+          if [ -s /tmp/changed.txt ]; then
+            while IFS='|' read -r NAME PREV CURR CHANGE_TYPE HEALTH DESIRED READY; do
+              FACTS+="{\"title\":\"$CHANGE_TYPE $NAME\",\"value\":\"$HEALTH | Pods: $READY/$DESIRED\\n⬅️ From: \`$PREV\`\\n➡️ To: \`$CURR\`\"},"
+            done < /tmp/changed.txt
+          fi
+
+          if [ -s /tmp/failed.txt ]; then
+            while IFS= read -r ENTRY; do
+              FACTS+="{\"title\":\"⚠️ FETCH FAILED\",\"value\":\"$ENTRY\"},"
+            done < /tmp/failed.txt
+          fi
+
+          FACTS="${FACTS%,}"
+
+          if grep -q "UNHEALTHY" /tmp/changed.txt 2>/dev/null || \
+             [ -s /tmp/failed.txt ]; then
+            COLOR="FF0000"; TITLE="🚨 EOD Image Deploy — Issues Detected"
+          elif grep -q "ROLLBACK" /tmp/changed.txt 2>/dev/null; then
+            COLOR="FFA500"; TITLE="⏪ EOD Rollback Detected"
+          else
+            COLOR="00C853"; TITLE="✅ EOD Image Deployed"
+          fi
+
+          curl -s -X POST "${{ secrets.TEAMS_WEBHOOK_EOD }}" \
+            -H "Content-Type: application/json" \
+            -d "{
+              \"@type\": \"MessageCard\",
+              \"@context\": \"https://schema.org/extensions\",
+              \"themeColor\": \"$COLOR\",
+              \"summary\": \"EOD Image Monitor\",
+              \"sections\": [{
+                \"activityTitle\": \"$TITLE\",
+                \"activitySubtitle\": \"Namespace: **eod** | $TIMESTAMP | Changed: ${{ steps.check.outputs.changed_count }} | Failed: ${{ steps.check.outputs.failed_count }}\",
+                \"facts\": [$FACTS],
+                \"markdown\": true
+              }],
+              \"potentialAction\": [{
+                \"@type\": \"OpenUri\",
+                \"name\": \"View Run\",
+                \"targets\": [{
+                  \"os\": \"default\",
+                  \"uri\": \"${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}\"
+                }]
+              }]
+            }"
