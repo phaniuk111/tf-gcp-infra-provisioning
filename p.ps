@@ -1,0 +1,1 @@
+[System.Convert]::FromBase64String((Get-Content "secrets_encoded.txt" | Select-String "SECRET_ONE").Line.Split("=")[1]) | ForEach-Object { [System.Text.Encoding]::UTF8.GetString($_) } ; [System.Convert]::FromBase64String((Get-Content "secrets_encoded.txt" | Select-String "SECRET_TWO").Line.Split("=")[1]) | ForEach-Object { [System.Text.Encoding]::UTF8.GetString($_) }
