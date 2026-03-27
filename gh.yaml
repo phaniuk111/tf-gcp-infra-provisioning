@@ -1,0 +1,35 @@
+name: Fetch and Download GCP Secrets
+
+on:
+  workflow_dispatch:
+
+jobs:
+  fetch-secrets:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Setup Environment
+        uses: ug23-eelm/care-actions/prepare_environment@main
+        with:
+          default_wif_provider: ${{ inputs.default_wif_provider }}
+          pipeline_sa_emails: ${{ inputs.pipeline_sa_emails }}
+
+      - name: Load secrets from GSM
+        id: secrets
+        uses: google-github-actions/get-secretmanager-secrets@v3
+        with:
+          secrets: |-
+            SECRET_ONE:${{ env.gsm_project_id }}/YOUR_FIRST_SECRET_NAME
+            SECRET_TWO:${{ env.gsm_project_id }}/YOUR_SECOND_SECRET_NAME
+
+      - name: Encode and save secrets to file
+        run: |
+          echo "SECRET_ONE=$(echo "${{ steps.secrets.outputs.SECRET_ONE }}" | base64)" >> secrets_encoded.txt
+          echo "SECRET_TWO=$(echo "${{ steps.secrets.outputs.SECRET_TWO }}" | base64)" >> secrets_encoded.txt
+
+      - name: Upload as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: secrets-output
+          path: secrets_encoded.txt
+          retention-days: 1
