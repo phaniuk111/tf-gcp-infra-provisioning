@@ -1,0 +1,122 @@
+name: Deploy with SDLC Governance (Reusable)
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        description: 'Environment name (uat / prl1 / prd)'
+        required: true
+        type: string
+      folder_prefix:
+        description: 'Folder prefix (uat / prl1 / prod)'
+        required: true
+        type: string
+      values_file_name:
+        description: 'Values file name from Helm chart'
+        required: true
+        type: string
+      change_name_override:
+        description: 'Optional static change_name. Leave empty to auto-generate'
+        required: false
+        type: string
+        default: ''
+      upload_blt:
+        description: 'Whether to upload BLT (true for uat/prd, false for prl1)'
+        required: true
+        type: boolean
+      concurrency_group:
+        description: 'Concurrency group name'
+        required: true
+        type: string
+
+jobs:
+  detect-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      multi_deployments_json: ${{ steps.build-matrix.outputs.multi_deployments_json }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Find changed services and build multi_deployments_json
+        id: build-matrix
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "multi_deployments_json=${{ inputs.manual_multi_deployments_json }}" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          BASE_SHA="${{ github.event.pull_request.base.sha }}"
+          HEAD_SHA="${{ github.event.pull_request.head.sha }}"
+
+          CHANGED_FILES=$(git diff --name-only "$BASE_SHA" "$HEAD_SHA" | grep -E '^${{ inputs.folder_prefix }}/.*/[^/]+\.yaml$' || true)
+
+          if [ -z "$CHANGED_FILES" ]; then
+            echo 'multi_deployments_json={"include": []}' >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          jq -n '{include: []}' > /tmp/deployments.json
+
+          for FILE in $CHANGED_FILES; do
+            PREV_VERSION=$(git show "$BASE_SHA":"$FILE" | yq -r '.chart.version // "NONE"' 2>/dev/null || echo "NONE")
+            CURR_VERSION=$(yq -r '.chart.version // "NONE"' "$FILE" 2>/dev/null || echo "NONE")
+
+            if [ "$PREV_VERSION" = "$CURR_VERSION" ]; then
+              echo "No version change in $FILE → ignoring dummy change"
+              continue
+            fi
+
+            NAMESPACE=$(echo "$FILE" | cut -d'/' -f2)
+            HELM_CHART_NAME=$(yq -r '.chart.name' "$FILE")
+            HELM_CHART_VERSION=$(yq -r '.chart.version' "$FILE")
+
+            jq --arg name "$HELM_CHART_NAME" \
+               --arg version "$HELM_CHART_VERSION" \
+               --arg dir "hlm-all/com/db/eod-ds" \
+               --arg values "${{ inputs.values_file_name }}" \
+               --arg ns "$NAMESPACE" \
+              '.include += [{"helm_chart_name": $name, "helm_chart_version": $version, "helm_chart_dir": $dir, "helm_values_file_name": $values, "gke_namespace": $ns}]' /tmp/deployments.json > /tmp/deployments.json.tmp && mv /tmp/deployments.json.tmp /tmp/deployments.json
+          done
+
+          MULTI_JSON=$(jq -c . /tmp/deployments.json)
+          echo "multi_deployments_json=$MULTI_JSON" >> $GITHUB_OUTPUT
+
+  generate-change-name:
+    runs-on: ubuntu-latest
+    outputs:
+      change_name: ${{ steps.set-name.outputs.change_name }}
+    steps:
+      - id: set-name
+        run: |
+          if [ -n "${{ inputs.change_name_override }}" ]; then
+            echo "change_name=${{ inputs.change_name_override }}" >> $GITHUB_OUTPUT
+          else
+            echo "change_name=EOD $(date +%Y.%m.%d) Release - ${{ inputs.environment | uppercase }}" >> $GITHUB_OUTPUT
+          fi
+
+  deploy:
+    needs: [detect-changes, generate-change-name]
+    if: needs.detect-changes.outputs.multi_deployments_json != '{"include": []}'
+    uses: ug23-eelm/care-workflows/.github/workflows/deploy_with_sdlc_checks_helm.yaml@main
+    with:
+      upload_blt: ${{ inputs.upload_blt }}
+      change_name: ${{ needs.generate-change-name.outputs.change_name }}
+      helm_chart_dir: "hlm-all/com/db/eod-ds"
+      helm_values_file_name: ${{ inputs.values_file_name }}
+      multi_deployments_json: ${{ needs.detect-changes.outputs.multi_deployments_json }}
+    secrets: inherit
+    concurrency:
+      group: ${{ inputs.concurrency_group }}
+      cancel-in-progress: false
+
+  notify_on_deployment:
+    name: Notify Deployment Status
+    needs: [detect-changes, deploy]
+    if: always()
+    uses: ./.github/workflows/eod_deployment_monitor.yaml
+    with:
+      env_grade: ${{ inputs.environment }}
+      multi_deployments_json: ${{ needs.detect-changes.outputs.multi_deployments_json }}
+    secrets: inherit
