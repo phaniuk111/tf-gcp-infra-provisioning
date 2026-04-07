@@ -25,5 +25,5 @@ jobs:
       upload_blt: false
       change_name_override: ${{ inputs.change_name_override }}
       concurrency_group: pr1-deployment
-      manual_multi_deployments_json: ${{ inputs.manual_multi_deployments_json || '{"include": []}' }}
+      manual_multi_deployments_json: ${{ inputs.manual_multi_deployments_json }}
     secrets: inherit
