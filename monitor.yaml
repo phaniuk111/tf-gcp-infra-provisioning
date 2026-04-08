@@ -1,0 +1,177 @@
+name: EOD Deployment Monitor - Real GKE Validation + Teams
+
+on:
+  workflow_call:
+    inputs:
+      env_grade:
+        description: 'Environment grade (uat / prl1 / prd)'
+        required: true
+        type: string
+      multi_deployments_json:
+        description: 'The same JSON that was passed to the deploy job'
+        required: true
+        type: string
+      runner_group:
+        description: 'Runner group name'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  validate-and-notify:
+    runs-on:
+      group: ${{ inputs.runner_group }}
+    steps:
+      - name: Check if there is anything to deploy
+        id: check
+        env:
+          DEPLOY_JSON: ${{ inputs.multi_deployments_json }}
+        run: |
+          COUNT=$(echo "$DEPLOY_JSON" | jq '.include | length' || echo 0)
+          echo "items=$COUNT" >> $GITHUB_OUTPUT
+          if [ "$COUNT" -eq 0 ]; then
+            echo "skip=true" >> $GITHUB_OUTPUT
+            echo "Nothing to deploy → skipping notification"
+          else
+            echo "skip=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Authenticate to GKE
+        if: steps.check.outputs.skip == 'false'
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GKE_SA_KEY }}
+
+      - name: Set up GKE kubectl
+        if: steps.check.outputs.skip == 'false'
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: ${{ secrets.GKE_PROJECT_ID }}
+
+      - name: Get GKE credentials
+        if: steps.check.outputs.skip == 'false'
+        run: |
+          gcloud container clusters get-credentials ${{ secrets.GKE_CLUSTER_NAME }} \
+            --zone ${{ secrets.GKE_CLUSTER_ZONE }} \
+            --project ${{ secrets.GKE_PROJECT_ID }}
+
+      - name: Validate deployments in GKE
+        if: steps.check.outputs.skip == 'false'
+        id: validation
+        env:
+          DEPLOY_JSON: ${{ inputs.multi_deployments_json }}
+        run: |
+          echo "$DEPLOY_JSON" > /tmp/deployments.json
+
+          FAILED=0
+          SUMMARY=""
+          NAMESPACES=""
+
+          for row in $(jq -c '.include[]' /tmp/deployments.json); do
+            RELEASE_NAME=$(echo "$row" | jq -r '.release_name // .helm_chart_name')
+            NAMESPACE=$(echo "$row" | jq -r '.gke_namespace')
+
+            if [[ ! "$NAMESPACES" =~ "$NAMESPACE" ]]; then
+              NAMESPACES="${NAMESPACES} ${NAMESPACE}"
+            fi
+
+            echo "Checking $RELEASE_NAME in namespace $NAMESPACE..."
+
+            if kubectl rollout status deployment/"$RELEASE_NAME" -n "$NAMESPACE" --timeout=8m 2>/dev/null || \
+               kubectl rollout status statefulset/"$RELEASE_NAME" -n "$NAMESPACE" --timeout=8m 2>/dev/null; then
+              SUMMARY="${SUMMARY}✅ ${RELEASE_NAME} (${NAMESPACE})\n"
+            else
+              SUMMARY="${SUMMARY}❌ ${RELEASE_NAME} (${NAMESPACE})\n"
+              FAILED=1
+            fi
+          done
+
+          if [ $FAILED -eq 0 ]; then
+            echo "status=✅ SUCCESS" >> $GITHUB_ENV
+            echo "color=good" >> $GITHUB_ENV
+          else
+            echo "status=❌ FAILED" >> $GITHUB_ENV
+            echo "color=attention" >> $GITHUB_ENV
+          fi
+
+          echo "summary=${SUMMARY}" >> $GITHUB_ENV
+          echo "namespaces=$(echo $NAMESPACES | xargs)" >> $GITHUB_ENV
+
+      - name: Send Adaptive Card to Microsoft Teams
+        if: steps.check.outputs.skip == 'false'
+        env:
+          TEAMS_WEBHOOK_URL: ${{ secrets.TEAMS_WEBHOOK_URL }}
+          ENV_GRADE: ${{ inputs.env_grade }}
+          RUN_ATTEMPT: ${{ github.run_attempt }}
+          ACTOR: ${{ github.actor }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          RE_RUN=""
+          if [ "$RUN_ATTEMPT" -gt 1 ]; then
+            RE_RUN="(Re-run #${RUN_ATTEMPT})"
+          fi
+
+          PAYLOAD=$(jq -n \
+            --arg title "Deployment ${ENV_GRADE} ${RE_RUN}" \
+            --arg status "${{ env.status }}" \
+            --arg color "${{ env.color }}" \
+            --arg ns "${{ env.namespaces }}" \
+            --arg summary "${{ env.summary }}" \
+            --arg actor "$ACTOR" \
+            --arg url "$RUN_URL" \
+            '{
+              "type": "message",
+              "attachments": [
+                {
+                  "contentType": "application/vnd.microsoft.card.adaptive",
+                  "content": {
+                    "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
+                    "type": "AdaptiveCard",
+                    "version": "1.5",
+                    "body": [
+                      {
+                        "type": "TextBlock",
+                        "text": $title,
+                        "weight": "bolder",
+                        "size": "medium"
+                      },
+                      {
+                        "type": "TextBlock",
+                        "text": $status,
+                        "color": $color,
+                        "weight": "bolder",
+                        "size": "large"
+                      },
+                      {
+                        "type": "TextBlock",
+                        "text": ("**Namespace**: " + $ns),
+                        "wrap": true,
+                        "weight": "bolder"
+                      },
+                      {
+                        "type": "TextBlock",
+                        "text": $summary,
+                        "wrap": true,
+                        "fontType": "monospace"
+                      },
+                      {
+                        "type": "TextBlock",
+                        "text": ("Triggered by: " + $actor),
+                        "size": "small"
+                      }
+                    ],
+                    "actions": [
+                      {
+                        "type": "Action.OpenUrl",
+                        "title": "View Workflow Run",
+                        "url": $url
+                      }
+                    ]
+                  }
+                }
+              ]
+            }')
+
+          curl -H "Content-Type: application/json" -d "$PAYLOAD" "$TEAMS_WEBHOOK_URL"
