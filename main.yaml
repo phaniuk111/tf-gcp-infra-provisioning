@@ -33,13 +33,21 @@ on:
         required: false
         type: string
         default: '{"include": []}'
+      runner_group:
+        description: 'Runner group name (e.g. uat, dev, prd)'
+        required: true
+        type: string
 
 permissions:
-  contents: read
+  contents: write
+  issues: write
+  pull-requests: write
+  id-token: write
 
 jobs:
   detect-changes:
-    runs-on: ubuntu-latest
+    runs-on:
+      group: ${{ inputs.runner_group }}
     outputs:
       multi_deployments_json: ${{ steps.build-matrix.outputs.multi_deployments_json }}
     steps:
@@ -109,8 +117,32 @@ jobs:
           MULTI_JSON=$(jq -c . /tmp/deployments.json)
           echo "multi_deployments_json=$MULTI_JSON" >> $GITHUB_OUTPUT
 
+      - name: Summary of detected changes
+        env:
+          DETECTED_JSON: ${{ steps.build-matrix.outputs.multi_deployments_json }}
+        run: |
+          echo "## Detected Deployments" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          COUNT=$(echo "$DETECTED_JSON" | jq '.include | length')
+          if [ "$COUNT" -eq 0 ]; then
+            echo "No deployments detected. Pipeline will skip deploy job." >> $GITHUB_STEP_SUMMARY
+          else
+            echo "**Environment:** ${{ inputs.environment }}" >> $GITHUB_STEP_SUMMARY
+            echo "**Trigger:** ${{ github.event_name }}" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "| Helm Chart | Version | Namespace |" >> $GITHUB_STEP_SUMMARY
+            echo "|------------|---------|-----------|" >> $GITHUB_STEP_SUMMARY
+            echo "$DETECTED_JSON" | jq -r '.include[] | "| \(.helm_chart_name) | \(.helm_chart_version) | \(.gke_namespace) |"' >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "**Raw JSON passed to deploy:**" >> $GITHUB_STEP_SUMMARY
+            echo '```json' >> $GITHUB_STEP_SUMMARY
+            echo "$DETECTED_JSON" | jq '.' >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+          fi
+
   generate-change-name:
-    runs-on: ubuntu-latest
+    runs-on:
+      group: ${{ inputs.runner_group }}
     outputs:
       change_name: ${{ steps.set-name.outputs.change_name }}
     steps:
