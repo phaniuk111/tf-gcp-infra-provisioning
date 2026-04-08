@@ -1,0 +1,35 @@
+name: SDLC Governance UAT Deployment Pipeline
+
+on:
+  pull_request:
+    types: [opened, reopened, closed, synchronize]
+    branches: [uat]
+  workflow_dispatch:
+    inputs:
+      manual_multi_deployments_json:
+        description: 'Paste full multi_deployments_json for urgent/hotfix'
+        required: false
+        default: '{"include": []}'
+      change_name_override:
+        description: 'Custom change_name (leave empty for auto date)'
+        required: false
+        default: ''
+
+jobs:
+  call-reusable:
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+      id-token: write
+    uses: ./.github/workflows/deploy-with-sdlc-governance.yaml
+    with:
+      environment: uat
+      folder_prefix: uat
+      values_file_name: values_uat.yaml
+      upload_blt: true
+      change_name_override: ${{ inputs.change_name_override }}
+      concurrency_group: uat-deployment
+      manual_multi_deployments_json: ${{ inputs.manual_multi_deployments_json }}
+      runner_group: uat
+    secrets: inherit
