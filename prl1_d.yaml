@@ -1,0 +1,35 @@
+name: SDLC Governance PR1 Deployment Pipeline
+
+on:
+  pull_request:
+    types: [opened, reopened, closed, synchronize]
+    branches: [prl1]
+  workflow_dispatch:
+    inputs:
+      manual_multi_deployments_json:
+        description: 'Paste full multi_deployments_json for urgent/hotfix'
+        required: false
+        default: '{"include": []}'
+      change_name_override:
+        description: 'Custom change_name (leave empty for auto date)'
+        required: false
+        default: ''
+
+jobs:
+  call-reusable:
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+      id-token: write
+    uses: ./.github/workflows/deploy-with-sdlc-governance.yaml
+    with:
+      environment: prl1
+      folder_prefix: prl1
+      values_file_name: values_prl1.yaml
+      upload_blt: false
+      change_name_override: ${{ inputs.change_name_override }}
+      concurrency_group: pr1-deployment
+      manual_multi_deployments_json: ${{ inputs.manual_multi_deployments_json }}
+      runner_group: dev
+    secrets: inherit
