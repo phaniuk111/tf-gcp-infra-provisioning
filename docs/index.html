@@ -1,50 +1,185 @@
-<!-- Inside the Quick Actions div -->
-<button onclick="showDeployForm()" 
-        class="w-full mb-4 flex items-center justify-center gap-3 bg-emerald-600 hover:bg-emerald-500 text-white font-medium py-4 px-6 rounded-2xl text-lg">
-  🚀 Deploy to UAT
-</button>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Platform Developer Portal</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@octokit/core@6/dist-web/index.js"></script>
+  <style>
+    body { font-family: system-ui, -apple-system, sans-serif; }
+  </style>
+</head>
+<body class="bg-gray-950 text-white">
+  <div class="max-w-6xl mx-auto p-8">
+    <h1 class="text-4xl font-bold mb-2">🏠 Platform Developer Portal</h1>
+    <p class="text-gray-400 mb-8">tf-gcp-infra-provisioning • Self-service for GCP + GitHub</p>
 
-<!-- Multi-select modal (add this before the closing </body> tag) -->
-<div id="deploy-modal" class="hidden fixed inset-0 bg-black/70 flex items-center justify-center z-50">
-  <div class="bg-gray-900 rounded-3xl p-8 max-w-md w-full mx-4">
-    <h3 class="text-2xl font-semibold mb-6">Deploy to UAT</h3>
-    
-    <div class="space-y-4">
-      <div>
-        <label class="block text-sm text-gray-400 mb-1">Image Name</label>
-        <input id="image-name" type="text" placeholder="my-app" 
-               class="w-full p-3 bg-gray-800 border border-gray-700 rounded-2xl text-white">
+    <!-- Token -->
+    <div class="mb-8 p-4 bg-gray-900 rounded-2xl">
+      <h2 class="text-lg font-semibold mb-3">🔑 GitHub Token (saved only in your browser)</h2>
+      <input id="token" type="password" placeholder="Paste your GitHub PAT (repo + workflow scopes)" 
+             class="w-full p-3 bg-gray-800 border border-gray-700 rounded-2xl text-white">
+      <button onclick="saveToken()" 
+              class="mt-3 px-6 py-2 bg-blue-600 hover:bg-blue-500 rounded-xl text-sm font-medium">
+        Save Token
+      </button>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+      <!-- My PRs -->
+      <div class="bg-gray-900 rounded-3xl p-6">
+        <h2 class="text-xl font-semibold mb-4 flex items-center gap-2">
+          📋 My Open Pull Requests
+          <button onclick="loadMyPRs()" class="text-sm bg-gray-800 hover:bg-gray-700 px-4 py-1 rounded-xl">Refresh</button>
+        </h2>
+        <ul id="pr-list" class="space-y-3"></ul>
       </div>
-      <div>
-        <label class="block text-sm text-gray-400 mb-1">Tag</label>
-        <input id="tag" type="text" placeholder="v1.2.3" value="latest"
-               class="w-full p-3 bg-gray-800 border border-gray-700 rounded-2xl text-white">
-      </div>
-      <div>
-        <label class="block text-sm text-gray-400 mb-1">Deployment Repo Name</label>
-        <input id="deployment-repo" type="text" placeholder="ug23-eelm/my-service-repo" 
-               class="w-full p-3 bg-gray-800 border border-gray-700 rounded-2xl text-white">
-      </div>
-      <div>
-        <label class="block text-sm text-gray-400 mb-1">Select Targets (multi-select)</label>
-        <select id="targets" multiple 
-                class="w-full p-3 bg-gray-800 border border-gray-700 rounded-2xl text-white h-40">
-          <option value="payments-api">payments-api</option>
-          <option value="auth-service">auth-service</option>
-          <option value="checkout-service">checkout-service</option>
-          <option value="user-service">user-service</option>
-          <option value="fraud-service">fraud-service</option>
-          <!-- Add more options here as needed -->
-        </select>
-        <p class="text-xs text-gray-500 mt-1">Hold Ctrl (Windows) or Cmd (Mac) to select multiple</p>
+
+      <!-- Quick Actions -->
+      <div class="bg-gray-900 rounded-3xl p-6">
+        <h2 class="text-xl font-semibold mb-4">🚀 Quick Actions</h2>
+
+        <button onclick="showDeployForm()" 
+                class="w-full mb-4 flex items-center justify-center gap-3 bg-emerald-600 hover:bg-emerald-500 text-white font-medium py-5 px-6 rounded-3xl text-lg">
+          🚀 Deploy to UAT
+        </button>
+
+        <a href="https://github.com/phaniuk111/tf-gcp-infra-provisioning/issues/new?template=bootstrap-repo.md" 
+           target="_blank"
+           class="block w-full text-center bg-gray-800 hover:bg-gray-700 text-white font-medium py-5 px-6 rounded-3xl mb-3">
+          🛠 Bootstrap Existing Repo
+        </a>
+
+        <a href="https://github.com/phaniuk111/tf-gcp-infra-provisioning/issues/new?template=request-firewall-rule.md" 
+           target="_blank"
+           class="block w-full text-center bg-gray-800 hover:bg-gray-700 text-white font-medium py-5 px-6 rounded-3xl">
+          🔥 Request Firewall Rule
+        </a>
       </div>
     </div>
 
-    <div class="flex gap-3 mt-8">
-      <button onclick="hideDeployForm()" 
-              class="flex-1 py-4 text-gray-400 font-medium">Cancel</button>
-      <button onclick="triggerDeployToUAT()" 
-              class="flex-1 py-4 bg-emerald-600 hover:bg-emerald-500 rounded-2xl font-semibold">Deploy Now</button>
+    <!-- Deploy Modal -->
+    <div id="deploy-modal" class="hidden fixed inset-0 bg-black/70 flex items-center justify-center z-50">
+      <div class="bg-gray-900 rounded-3xl p-8 max-w-md w-full mx-4">
+        <h3 class="text-2xl font-semibold mb-6">Deploy to UAT</h3>
+        <div class="space-y-4">
+          <div>
+            <label class="block text-sm text-gray-400 mb-1">Image Name</label>
+            <input id="image-name" type="text" placeholder="my-app" class="w-full p-3 bg-gray-800 border border-gray-700 rounded-3xl text-white">
+          </div>
+          <div>
+            <label class="block text-sm text-gray-400 mb-1">Tag</label>
+            <input id="tag" type="text" value="latest" class="w-full p-3 bg-gray-800 border border-gray-700 rounded-3xl text-white">
+          </div>
+          <div>
+            <label class="block text-sm text-gray-400 mb-1">Deployment Repo Name</label>
+            <input id="deployment-repo" type="text" placeholder="phaniuk111/my-service" class="w-full p-3 bg-gray-800 border border-gray-700 rounded-3xl text-white">
+          </div>
+          <div>
+            <label class="block text-sm text-gray-400 mb-1">Select Targets (multi-select)</label>
+            <select id="targets" multiple class="w-full p-3 bg-gray-800 border border-gray-700 rounded-3xl text-white h-40">
+              <option value="payments-api">payments-api</option>
+              <option value="auth-service">auth-service</option>
+              <option value="checkout-service">checkout-service</option>
+              <option value="user-service">user-service</option>
+              <option value="fraud-service">fraud-service</option>
+            </select>
+            <p class="text-xs text-gray-500 mt-1">Hold Ctrl/Cmd to select multiple</p>
+          </div>
+        </div>
+        <div class="flex gap-3 mt-8">
+          <button onclick="hideDeployForm()" class="flex-1 py-4 text-gray-400 font-medium">Cancel</button>
+          <button onclick="triggerDeployToUAT()" class="flex-1 py-4 bg-emerald-600 hover:bg-emerald-500 rounded-3xl font-semibold">Deploy Now</button>
+        </div>
+      </div>
     </div>
   </div>
-</div>
+
+  <script>
+    let octokit;
+    const tokenKey = 'github_pat';
+
+    function saveToken() {
+      const token = document.getElementById('token').value.trim();
+      if (token) {
+        localStorage.setItem(tokenKey, token);
+        alert('✅ Token saved!');
+        loadMyPRs();
+      }
+    }
+
+    async function loadMyPRs() {
+      const token = localStorage.getItem(tokenKey);
+      if (!token) return;
+      const list = document.getElementById('pr-list');
+      list.innerHTML = '<li class="text-gray-400">Loading...</li>';
+      try {
+        octokit = new Octokit({ auth: token });
+        const { data } = await octokit.request('GET /search/issues', {
+          q: 'is:pr is:open author:@me',
+          per_page: 8
+        });
+        list.innerHTML = data.items.length === 0 
+          ? '<li class="text-gray-400">No open PRs</li>' 
+          : data.items.map(pr => `
+            <li class="flex justify-between bg-gray-800 p-4 rounded-3xl">
+              <a href="${pr.html_url}" target="_blank" class="hover:underline">${pr.title}</a>
+              <span class="text-xs text-gray-400">${pr.repository_url.split('/').pop()}</span>
+            </li>`).join('');
+      } catch (e) {
+        list.innerHTML = `<li class="text-red-400">Error loading PRs</li>`;
+      }
+    }
+
+    function showDeployForm() {
+      if (!localStorage.getItem(tokenKey)) return alert('Please save your GitHub token first');
+      document.getElementById('deploy-modal').classList.remove('hidden');
+    }
+
+    function hideDeployForm() {
+      document.getElementById('deploy-modal').classList.add('hidden');
+    }
+
+    async function triggerDeployToUAT() {
+      const token = localStorage.getItem(tokenKey);
+      const imageName = document.getElementById('image-name').value.trim();
+      const tag = document.getElementById('tag').value.trim();
+      const deploymentRepo = document.getElementById('deployment-repo').value.trim();
+      const selectedTargets = Array.from(document.getElementById('targets').selectedOptions).map(opt => opt.value);
+
+      if (!imageName || !tag || !deploymentRepo || selectedTargets.length === 0) {
+        return alert('Please fill all fields and select at least one target');
+      }
+
+      hideDeployForm();
+
+      try {
+        await fetch('https://api.github.com/repos/phaniuk111/tf-gcp-infra-provisioning/dispatches', {
+          method: 'POST',
+          headers: {
+            'Authorization': `token ${token}`,
+            'Accept': 'application/vnd.github.v3+json',
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            event_type: 'deploy-to-uat',
+            client_payload: {
+              image_name: imageName,
+              tag: tag,
+              deployment_repo: deploymentRepo,
+              targets: selectedTargets
+            }
+          })
+        });
+        alert('✅ Deploy to UAT triggered! Check Actions tab.');
+      } catch (e) {
+        alert('Error: ' + e.message);
+      }
+    }
+
+    // Auto-load on page open
+    window.onload = () => loadMyPRs();
+  </script>
+</body>
+</html>
