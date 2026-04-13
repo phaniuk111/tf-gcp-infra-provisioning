@@ -27,6 +27,7 @@
       --accent-amber: #f59e0b;
       --accent-red: #ef4444;
       --accent-purple: #8b5cf6;
+      --accent-cyan: #06b6d4;
       --radius: 12px;
       --radius-lg: 16px;
       --font-body: 'Plus Jakarta Sans', system-ui, sans-serif;
@@ -80,7 +81,7 @@
     .token-bar {
       display: flex; align-items: center; gap: 12px;
       background: var(--bg-card); border: 1px solid var(--border);
-      border-radius: var(--radius); padding: 12px 16px; margin-bottom: 40px;
+      border-radius: var(--radius); padding: 12px 16px; margin-bottom: 16px;
       flex-wrap: wrap;
     }
     .token-bar label {
@@ -96,11 +97,11 @@
     .token-bar input:focus { border-color: var(--border-focus); }
     .token-bar input::placeholder { color: var(--text-muted); }
 
-    /* === USER BAR (replaces token bar after connect) === */
+    /* === USER BAR === */
     .user-bar {
       display: none; align-items: center; gap: 12px;
       background: var(--bg-card); border: 1px solid var(--border);
-      border-radius: var(--radius); padding: 10px 16px; margin-bottom: 40px;
+      border-radius: var(--radius); padding: 10px 16px; margin-bottom: 16px;
     }
     .user-bar.active { display: flex; }
     .user-bar img {
@@ -118,6 +119,31 @@
       background: var(--accent-green); box-shadow: 0 0 6px var(--accent-green);
     }
 
+    /* === JIRA BAR === */
+    .jira-bar {
+      display: flex; align-items: center; gap: 12px;
+      background: var(--bg-card); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 12px 16px; margin-bottom: 40px;
+      flex-wrap: wrap;
+    }
+    .jira-bar label {
+      font-family: var(--font-mono); font-size: 12px; color: var(--accent-cyan);
+      white-space: nowrap; flex-shrink: 0;
+    }
+    .jira-bar input {
+      flex: 1; min-width: 160px; background: var(--bg-input); border: 1px solid var(--border);
+      border-radius: 8px; padding: 8px 12px; color: var(--text-primary);
+      font-family: var(--font-mono); font-size: 13px; outline: none;
+      transition: border-color 0.2s;
+    }
+    .jira-bar input:focus { border-color: var(--accent-cyan); }
+    .jira-bar input::placeholder { color: var(--text-muted); }
+    .jira-bar-saved {
+      display: none; align-items: center; gap: 8px;
+      font-family: var(--font-mono); font-size: 13px; color: var(--text-primary);
+    }
+    .jira-bar-saved.active { display: flex; }
+
     /* === BUTTONS === */
     .btn {
       display: inline-flex; align-items: center; justify-content: center; gap: 8px;
@@ -128,6 +154,8 @@
     .btn-sm { padding: 6px 14px; font-size: 12px; }
     .btn-primary { background: var(--accent-blue); color: #fff; }
     .btn-primary:hover { background: var(--accent-blue-dim); transform: translateY(-1px); }
+    .btn-cyan { background: var(--accent-cyan); color: #fff; }
+    .btn-cyan:hover { background: #0891b2; transform: translateY(-1px); }
     .btn-green { background: var(--accent-green); color: #fff; }
     .btn-green:hover { background: var(--accent-green-dim); transform: translateY(-1px); }
     .btn-ghost { background: transparent; color: var(--text-secondary); border: 1px solid var(--border); }
@@ -156,6 +184,7 @@
 
     /* === GRID === */
     .grid-main { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+    .grid-full { grid-column: 1 / -1; }
     @media (max-width: 768px) {
       .grid-main { grid-template-columns: 1fr; }
       .header h1 { font-size: 28px; }
@@ -200,6 +229,40 @@
       background: var(--accent-green);
     }
     .pr-item-left { display: flex; gap: 10px; align-items: flex-start; min-width: 0; }
+
+    /* === JIRA LIST === */
+    .jira-list { list-style: none; display: flex; flex-direction: column; gap: 8px; }
+    .jira-item {
+      display: flex; align-items: flex-start; gap: 12px;
+      padding: 12px 14px; border-radius: 10px; background: var(--bg-input);
+      border: 1px solid transparent; transition: all 0.15s;
+    }
+    .jira-item:hover { border-color: var(--border); background: var(--bg-card-hover); }
+    .jira-item a {
+      color: var(--text-primary); text-decoration: none; font-size: 13px;
+      font-weight: 500; line-height: 1.4;
+    }
+    .jira-item a:hover { color: var(--accent-cyan); }
+    .jira-key {
+      font-family: var(--font-mono); font-size: 11px; font-weight: 600; color: var(--accent-cyan);
+      background: rgba(6,182,212,0.08); border: 1px solid rgba(6,182,212,0.15);
+      padding: 2px 8px; border-radius: 100px; white-space: nowrap; flex-shrink: 0;
+    }
+    .jira-status {
+      font-family: var(--font-mono); font-size: 10px; font-weight: 600;
+      padding: 2px 8px; border-radius: 100px; white-space: nowrap; flex-shrink: 0;
+      text-transform: uppercase; letter-spacing: 0.03em;
+    }
+    .jira-status.todo { color: var(--text-muted); background: rgba(255,255,255,0.04); border: 1px solid var(--border); }
+    .jira-status.progress { color: var(--accent-blue); background: rgba(59,130,246,0.08); border: 1px solid rgba(59,130,246,0.15); }
+    .jira-status.review { color: var(--accent-amber); background: rgba(245,158,11,0.08); border: 1px solid rgba(245,158,11,0.15); }
+    .jira-status.done { color: var(--accent-green); background: rgba(16,185,129,0.08); border: 1px solid rgba(16,185,129,0.15); }
+    .jira-item-right { display: flex; gap: 8px; align-items: center; flex-shrink: 0; }
+    .jira-empty { color: var(--text-muted); font-size: 13px; padding: 24px 0; text-align: center; }
+    .jira-meta {
+      font-family: var(--font-mono); font-size: 11px; color: var(--text-muted);
+      text-align: right; margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--border);
+    }
 
     /* === DEPLOY CTA === */
     .deploy-cta {
@@ -275,11 +338,19 @@
     .toast {
       position: fixed; bottom: 24px; right: 24px; z-index: 200;
       padding: 14px 20px; border-radius: 10px; font-size: 13px; font-weight: 600;
-      transform: translateY(120%); opacity: 0; transition: all 0.3s ease; max-width: 360px;
+      transform: translateY(120%); opacity: 0; transition: all 0.3s ease; max-width: 420px;
+      display: flex; align-items: center; gap: 12px;
     }
     .toast.show { transform: translateY(0); opacity: 1; }
     .toast.success { background: rgba(16,185,129,0.15); border: 1px solid rgba(16,185,129,0.3); color: var(--accent-green); }
     .toast.error { background: rgba(239,68,68,0.15); border: 1px solid rgba(239,68,68,0.3); color: var(--accent-red); }
+    .toast.info { background: rgba(6,182,212,0.15); border: 1px solid rgba(6,182,212,0.3); color: var(--accent-cyan); }
+    .toast-msg { flex: 1; }
+    .toast-close {
+      background: none; border: none; color: inherit; cursor: pointer; opacity: 0.5;
+      font-size: 16px; padding: 0 2px; line-height: 1; flex-shrink: 0;
+    }
+    .toast-close:hover { opacity: 1; }
   </style>
 </head>
 <body>
@@ -296,14 +367,14 @@
       </p>
     </header>
 
-    <!-- TOKEN INPUT (shown when not connected) -->
+    <!-- TOKEN INPUT -->
     <div class="token-bar" id="token-bar">
       <label>GH_TOKEN</label>
       <input id="token" type="password" placeholder="ghp_xxxx  (repo + workflow scopes)" spellcheck="false" autocomplete="off">
       <button class="btn btn-primary btn-sm" onclick="saveToken()">Connect</button>
     </div>
 
-    <!-- USER BAR (shown when connected) -->
+    <!-- USER BAR (shown after connect) -->
     <div class="user-bar" id="user-bar">
       <img id="user-avatar" src="" alt="">
       <span class="user-bar-name" id="user-name"></span>
@@ -313,10 +384,23 @@
       <button class="btn-danger-text" onclick="disconnect()">disconnect</button>
     </div>
 
+    <!-- JIRA USERNAME -->
+    <div class="jira-bar" id="jira-bar">
+      <label>JIRA_USER</label>
+      <input id="jira-user-input" type="text" placeholder="your Jira username" spellcheck="false" autocomplete="off">
+      <button class="btn btn-cyan btn-sm" onclick="saveJiraUser()">Load Tickets</button>
+      <div class="jira-bar-saved" id="jira-bar-saved">
+        <span style="color:var(--accent-cyan);">&#9632;</span>
+        <span id="jira-user-display" style="font-family:var(--font-mono);font-size:13px;font-weight:600;"></span>
+        <span class="user-bar-spacer"></span>
+        <button class="btn-danger-text" onclick="clearJiraUser()">change</button>
+      </div>
+    </div>
+
     <!-- MAIN GRID -->
     <div class="grid-main">
 
-      <!-- LEFT: Open PRs -->
+      <!-- Open PRs -->
       <div class="card">
         <div class="card-header">
           <span class="card-title">My Open Pull Requests</span>
@@ -330,7 +414,7 @@
         </ul>
       </div>
 
-      <!-- RIGHT: Quick Actions -->
+      <!-- Quick Actions -->
       <div class="card">
         <div class="card-header">
           <span class="card-title">Quick Actions</span>
@@ -352,6 +436,21 @@
             <span class="btn-label">Request Firewall Rule<small>Open a new VPC firewall change request</small></span>
           </a>
         </div>
+      </div>
+
+      <!-- Jira Tickets (full-width row) -->
+      <div class="card grid-full">
+        <div class="card-header">
+          <span class="card-title">My Jira Tickets</span>
+          <button class="btn btn-ghost btn-sm" onclick="loadJiraTickets()">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2v6h-6"/><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M3 22v-6h6"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/></svg>
+            Refresh
+          </button>
+        </div>
+        <ul id="jira-list" class="jira-list">
+          <li class="jira-empty">Enter your Jira username above to load tickets</li>
+        </ul>
+        <div class="jira-meta" id="jira-meta" style="display:none;"></div>
       </div>
     </div>
 
@@ -404,17 +503,40 @@
 
   <script>
     var TOKEN_KEY = 'github_pat';
+    var JIRA_USER_KEY = 'jira_user';
+    /* >>>  CHANGE THIS to your GitHub Pages base URL  <<< */
+    var PAGES_BASE = 'https://phaniuk111.github.io/tf-gcp-infra-provisioning';
 
     /* ---- Toast ---- */
-    function showToast(msg, type) {
+    var toastTimer = null;
+    function showToast(msg, type, duration) {
       type = type || 'success';
+      if (typeof duration === 'undefined') duration = 4000;
       var t = document.getElementById('toast');
-      t.textContent = msg;
+      t.innerHTML = '<span class="toast-msg">' + msg + '</span>'
+        + '<button class="toast-close" onclick="dismissToast()" title="Dismiss">&times;</button>';
       t.className = 'toast ' + type + ' show';
-      setTimeout(function() { t.classList.remove('show'); }, 3500);
+      if (toastTimer) clearTimeout(toastTimer);
+      if (duration > 0) {
+        toastTimer = setTimeout(function() { t.classList.remove('show'); }, duration);
+      }
+    }
+    function dismissToast() {
+      var t = document.getElementById('toast');
+      t.classList.remove('show');
+      if (toastTimer) clearTimeout(toastTimer);
     }
 
-    /* ---- Token ---- */
+    /* ---- Escape HTML ---- */
+    function escHtml(s) {
+      var d = document.createElement('div');
+      d.textContent = s;
+      return d.innerHTML;
+    }
+
+    /* ==============================
+       GITHUB TOKEN
+    ============================== */
     function saveToken() {
       var token = document.getElementById('token').value.trim();
       if (!token) return showToast('Paste your GitHub token', 'error');
@@ -454,7 +576,9 @@
       loadMyPRs();
     }
 
-    /* ---- PRs ---- */
+    /* ==============================
+       PULL REQUESTS
+    ============================== */
     async function loadMyPRs() {
       var token = localStorage.getItem(TOKEN_KEY);
       var list = document.getElementById('pr-list');
@@ -462,7 +586,6 @@
       list.innerHTML = '<li class="pr-empty" style="color:var(--text-secondary)">Loading…</li>';
 
       try {
-        /* first get the authenticated user's login */
         var userRes = await fetch('https://api.github.com/user', {
           headers: { Authorization: 'token ' + token, Accept: 'application/vnd.github.v3+json' }
         });
@@ -470,7 +593,6 @@
         var userData = await userRes.json();
         var login = userData.login;
 
-        /* search for open PRs by this user */
         var q = encodeURIComponent('is:pr is:open author:' + login);
         var res = await fetch('https://api.github.com/search/issues?q=' + q + '&per_page=10&sort=updated&order=desc', {
           headers: { Authorization: 'token ' + token, Accept: 'application/vnd.github.v3+json' }
@@ -499,13 +621,123 @@
       }
     }
 
-    function escHtml(s) {
-      var d = document.createElement('div');
-      d.textContent = s;
-      return d.innerHTML;
+    /* ==============================
+       JIRA
+    ============================== */
+    function saveJiraUser() {
+      var username = document.getElementById('jira-user-input').value.trim();
+      if (!username) return showToast('Enter your Jira username', 'error');
+      localStorage.setItem(JIRA_USER_KEY, username);
+      showJiraSaved(username);
+      loadJiraTickets();
     }
 
-    /* ---- Deploy Modal ---- */
+    function showJiraSaved(username) {
+      document.getElementById('jira-user-input').style.display = 'none';
+      document.querySelector('#jira-bar .btn-cyan').style.display = 'none';
+      document.getElementById('jira-user-display').textContent = username;
+      document.getElementById('jira-bar-saved').classList.add('active');
+    }
+
+    function clearJiraUser() {
+      localStorage.removeItem(JIRA_USER_KEY);
+      document.getElementById('jira-user-input').style.display = '';
+      document.getElementById('jira-user-input').value = '';
+      document.querySelector('#jira-bar .btn-cyan').style.display = '';
+      document.getElementById('jira-bar-saved').classList.remove('active');
+      document.getElementById('jira-list').innerHTML = '<li class="jira-empty">Enter your Jira username above to load tickets</li>';
+      document.getElementById('jira-meta').style.display = 'none';
+    }
+
+    async function loadJiraTickets() {
+      var username = localStorage.getItem(JIRA_USER_KEY);
+      var list = document.getElementById('jira-list');
+      var meta = document.getElementById('jira-meta');
+      if (!username) return;
+
+      list.innerHTML = '<li class="jira-empty" style="color:var(--text-secondary)">Loading tickets…</li>';
+      meta.style.display = 'none';
+
+      try {
+        var url = PAGES_BASE + '/jira-data/' + encodeURIComponent(username) + '.json?_=' + Date.now();
+        var res = await fetch(url);
+
+        if (res.status === 404) {
+          list.innerHTML = '<li class="jira-empty">'
+            + 'No data yet for <strong>' + escHtml(username) + '</strong><br>'
+            + '<span style="font-size:12px;color:var(--text-muted);margin-top:6px;display:inline-block;">'
+            + 'Trigger the sync workflow or wait for the next scheduled run'
+            + '</span></li>';
+          triggerJiraSync(username);
+          return;
+        }
+
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        var data = await res.json();
+
+        if (!data.issues || data.issues.length === 0) {
+          list.innerHTML = '<li class="jira-empty">No open tickets — all clear</li>';
+          meta.style.display = 'block';
+          meta.textContent = 'Last synced: ' + (data.updated_at || 'unknown');
+          return;
+        }
+
+        list.innerHTML = data.issues.map(function(issue) {
+          var statusClass = getStatusClass(issue.status);
+          var jiraUrl = issue.url || '#';
+          return '<li class="jira-item">'
+            + '<span class="jira-key">' + escHtml(issue.key) + '</span>'
+            + '<a href="' + jiraUrl + '" target="_blank" rel="noopener" style="flex:1;">' + escHtml(issue.summary) + '</a>'
+            + '<div class="jira-item-right">'
+            + '<span class="jira-status ' + statusClass + '">' + escHtml(issue.status) + '</span>'
+            + '</div>'
+            + '</li>';
+        }).join('');
+
+        meta.style.display = 'block';
+        meta.textContent = 'Last synced: ' + (data.updated_at || 'unknown') + ' · ' + data.issues.length + ' tickets';
+
+      } catch (e) {
+        console.error('Jira load error:', e);
+        list.innerHTML = '<li class="jira-empty" style="color:var(--accent-red)">Failed to load tickets — ' + escHtml(e.message) + '</li>';
+      }
+    }
+
+    function getStatusClass(status) {
+      if (!status) return 'todo';
+      var s = status.toLowerCase();
+      if (s.indexOf('progress') !== -1 || s.indexOf('dev') !== -1) return 'progress';
+      if (s.indexOf('review') !== -1 || s.indexOf('test') !== -1 || s.indexOf('qa') !== -1) return 'review';
+      if (s.indexOf('done') !== -1 || s.indexOf('closed') !== -1 || s.indexOf('resolved') !== -1) return 'done';
+      return 'todo';
+    }
+
+    /* Auto-trigger workflow to sync Jira data when none exists */
+    async function triggerJiraSync(username) {
+      var token = localStorage.getItem(TOKEN_KEY);
+      if (!token) return;
+      try {
+        await fetch('https://api.github.com/repos/phaniuk111/tf-gcp-infra-provisioning/dispatches', {
+          method: 'POST',
+          headers: {
+            Authorization: 'token ' + token,
+            Accept: 'application/vnd.github.v3+json',
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            event_type: 'sync-jira',
+            client_payload: { jira_user: username }
+          })
+        });
+        showToast('Jira sync triggered — data will appear after workflow completes', 'info');
+      } catch (e) {
+        console.error('Jira sync trigger error:', e);
+      }
+    }
+
+    /* ==============================
+       DEPLOY MODAL
+    ============================== */
     function showDeployForm() {
       if (!localStorage.getItem(TOKEN_KEY)) return showToast('Connect your token first', 'error');
       document.getElementById('deploy-modal').classList.add('active');
@@ -523,14 +755,19 @@
       var tag = document.getElementById('tag').value.trim();
       var namespace = document.getElementById('namespace').value.trim();
       var deploymentRepo = document.getElementById('deployment-repo').value.trim();
+      var REPO = 'phaniuk111/tf-gcp-infra-provisioning';
 
       if (!imageName || !tag || !namespace || !deploymentRepo) {
         return showToast('Please fill in all fields', 'error');
       }
       hideDeployForm();
+      showToast('Triggering deploy…', 'info', 10000);
 
       try {
-        var res = await fetch('https://api.github.com/repos/phaniuk111/tf-gcp-infra-provisioning/dispatches', {
+        /* Capture timestamp before dispatch */
+        var beforeTime = new Date().toISOString();
+
+        var res = await fetch('https://api.github.com/repos/' + REPO + '/dispatches', {
           method: 'POST',
           headers: {
             Authorization: 'token ' + token,
@@ -548,16 +785,52 @@
           })
         });
         if (!res.ok) throw new Error('HTTP ' + res.status);
-        showToast('Deploy triggered — check Actions tab');
+
+        /* Poll for the workflow run (may take a few seconds to appear) */
+        var runUrl = null;
+        for (var attempt = 0; attempt < 5; attempt++) {
+          await new Promise(function(r) { setTimeout(r, 2000); });
+          var runsRes = await fetch(
+            'https://api.github.com/repos/' + REPO + '/actions/runs?event=repository_dispatch&created=%3E' + encodeURIComponent(beforeTime) + '&per_page=5',
+            { headers: { Authorization: 'token ' + token, Accept: 'application/vnd.github.v3+json' } }
+          );
+          if (runsRes.ok) {
+            var runsData = await runsRes.json();
+            if (runsData.workflow_runs && runsData.workflow_runs.length > 0) {
+              runUrl = runsData.workflow_runs[0].html_url;
+              break;
+            }
+          }
+        }
+
+        if (runUrl) {
+          showToast(
+            'Deploy triggered &nbsp;&#10003;&nbsp; <a href="' + runUrl + '" target="_blank" rel="noopener" style="color:inherit;text-decoration:underline;font-weight:700;">View run &rarr;</a>',
+            'success', 0
+          );
+        } else {
+          showToast(
+            'Deploy triggered &nbsp;&#10003;&nbsp; <a href="https://github.com/' + REPO + '/actions" target="_blank" rel="noopener" style="color:inherit;text-decoration:underline;font-weight:700;">View Actions &rarr;</a>',
+            'success', 0
+          );
+        }
       } catch (e) {
-        showToast('Deploy failed: ' + e.message, 'error');
+        showToast('Deploy failed: ' + escHtml(e.message), 'error');
       }
     }
 
-    /* ---- Init ---- */
+    /* ==============================
+       INIT
+    ============================== */
     window.addEventListener('DOMContentLoaded', function() {
-      var saved = localStorage.getItem(TOKEN_KEY);
-      if (saved) onConnected(saved);
+      var savedToken = localStorage.getItem(TOKEN_KEY);
+      if (savedToken) onConnected(savedToken);
+
+      var savedJira = localStorage.getItem(JIRA_USER_KEY);
+      if (savedJira) {
+        showJiraSaved(savedJira);
+        loadJiraTickets();
+      }
     });
   </script>
 </body>
