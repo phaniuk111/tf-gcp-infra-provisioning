@@ -785,47 +785,11 @@
         });
         if (!res.ok) throw new Error('HTTP ' + res.status);
 
-        /* Poll for the workflow run — it can take a few seconds to appear */
-        var runUrl = null;
-        var dispatchTime = Date.now();
-
-        for (var attempt = 0; attempt < 8; attempt++) {
-          await new Promise(function(r) { setTimeout(r, 2500); });
-
-          var actorParam = ghLogin ? '&actor=' + encodeURIComponent(ghLogin) : '';
-          var runsRes = await fetch(
-            'https://api.github.com/repos/' + REPO + '/actions/runs?event=repository_dispatch' + actorParam + '&per_page=5',
-            { headers: { Authorization: 'token ' + token, Accept: 'application/vnd.github.v3+json' } }
-          );
-
-          if (runsRes.ok) {
-            var runsData = await runsRes.json();
-            if (runsData.workflow_runs && runsData.workflow_runs.length > 0) {
-              for (var i = 0; i < runsData.workflow_runs.length; i++) {
-                var run = runsData.workflow_runs[i];
-                var runCreated = new Date(run.created_at).getTime();
-                /* Match: created after our dispatch, triggered by this user */
-                if (runCreated >= dispatchTime - 5000) {
-                  runUrl = run.html_url;
-                  break;
-                }
-              }
-              if (runUrl) break;
-            }
-          }
-        }
-
-        if (runUrl) {
-          showToast(
-            'Deploy triggered &nbsp;&#10003;&nbsp; <a href="' + runUrl + '" target="_blank" rel="noopener" style="color:inherit;text-decoration:underline;font-weight:700;">View run &rarr;</a>',
-            'success', 0
-          );
-        } else {
-          showToast(
-            'Deploy triggered &nbsp;&#10003;&nbsp; <a href="https://github.com/' + REPO + '/actions" target="_blank" rel="noopener" style="color:inherit;text-decoration:underline;font-weight:700;">View Actions &rarr;</a>',
-            'success', 0
-          );
-        }
+        var workflowUrl = 'https://github.com/' + REPO + '/actions/workflows/deploy-uat.yml';
+        showToast(
+          'Deploy triggered &nbsp;&#10003;&nbsp; <a href="' + workflowUrl + '" target="_blank" rel="noopener" style="color:inherit;text-decoration:underline;font-weight:700;">View workflow &rarr;</a>',
+          'success', 0
+        );
       } catch (e) {
         showToast('Deploy failed: ' + escHtml(e.message), 'error');
       }
