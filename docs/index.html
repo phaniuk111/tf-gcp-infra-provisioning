@@ -504,6 +504,7 @@
   <script>
     var TOKEN_KEY = 'github_pat';
     var JIRA_USER_KEY = 'jira_user';
+    var ghLogin = null;
     /* >>>  CHANGE THIS to your GitHub Pages base URL  <<< */
     var PAGES_BASE = 'https://phaniuk111.github.io/tf-gcp-infra-provisioning';
 
@@ -568,6 +569,7 @@
         document.getElementById('user-name').textContent = user.name || user.login;
         document.getElementById('user-handle').textContent = '@' + user.login;
         document.getElementById('user-bar').classList.add('active');
+        ghLogin = user.login;
       } catch (e) {
         disconnect();
         return showToast('Invalid token — check scopes and try again', 'error');
@@ -764,9 +766,6 @@
       showToast('Triggering deploy…', 'info', 10000);
 
       try {
-        /* Capture timestamp before dispatch */
-        var beforeTime = new Date().toISOString();
-
         var res = await fetch('https://api.github.com/repos/' + REPO + '/dispatches', {
           method: 'POST',
           headers: {
@@ -786,19 +785,32 @@
         });
         if (!res.ok) throw new Error('HTTP ' + res.status);
 
-        /* Poll for the workflow run (may take a few seconds to appear) */
+        /* Poll for the workflow run — it can take a few seconds to appear */
         var runUrl = null;
-        for (var attempt = 0; attempt < 5; attempt++) {
-          await new Promise(function(r) { setTimeout(r, 2000); });
+        var dispatchTime = Date.now();
+
+        for (var attempt = 0; attempt < 8; attempt++) {
+          await new Promise(function(r) { setTimeout(r, 2500); });
+
+          var actorParam = ghLogin ? '&actor=' + encodeURIComponent(ghLogin) : '';
           var runsRes = await fetch(
-            'https://api.github.com/repos/' + REPO + '/actions/runs?event=repository_dispatch&created=%3E' + encodeURIComponent(beforeTime) + '&per_page=5',
+            'https://api.github.com/repos/' + REPO + '/actions/runs?event=repository_dispatch' + actorParam + '&per_page=5',
             { headers: { Authorization: 'token ' + token, Accept: 'application/vnd.github.v3+json' } }
           );
+
           if (runsRes.ok) {
             var runsData = await runsRes.json();
             if (runsData.workflow_runs && runsData.workflow_runs.length > 0) {
-              runUrl = runsData.workflow_runs[0].html_url;
-              break;
+              for (var i = 0; i < runsData.workflow_runs.length; i++) {
+                var run = runsData.workflow_runs[i];
+                var runCreated = new Date(run.created_at).getTime();
+                /* Match: created after our dispatch, triggered by this user */
+                if (runCreated >= dispatchTime - 5000) {
+                  runUrl = run.html_url;
+                  break;
+                }
+              }
+              if (runUrl) break;
             }
           }
         }
