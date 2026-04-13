@@ -255,8 +255,6 @@
     }
     .form-input:focus { border-color: var(--border-focus); }
     .form-input::placeholder { color: var(--text-muted); }
-    select.form-input { height: 140px; }
-    select.form-input option { padding: 6px 4px; }
     .form-hint { font-size: 11px; color: var(--text-muted); margin-top: 4px; }
     .modal-actions { display: flex; gap: 12px; margin-top: 28px; }
     .modal-actions .btn { flex: 1; padding: 12px; font-size: 14px; }
@@ -387,19 +385,12 @@
         <input id="tag" type="text" value="latest" class="form-input">
       </div>
       <div class="form-group">
-        <label>Deployment Repo</label>
-        <input id="deployment-repo" type="text" placeholder="phaniuk111/my-service" class="form-input">
+        <label>Namespace</label>
+        <input id="namespace" type="text" placeholder="e.g. payments, checkout, auth" class="form-input">
       </div>
       <div class="form-group">
-        <label>Targets</label>
-        <select id="targets" multiple class="form-input">
-          <option value="payments-api">payments-api</option>
-          <option value="auth-service">auth-service</option>
-          <option value="checkout-service">checkout-service</option>
-          <option value="user-service">user-service</option>
-          <option value="fraud-service">fraud-service</option>
-        </select>
-        <p class="form-hint">Hold Ctrl / Cmd to select multiple targets</p>
+        <label>Deployment Repo</label>
+        <input id="deployment-repo" type="text" placeholder="phaniuk111/my-service" class="form-input">
       </div>
       <div class="modal-actions">
         <button class="btn btn-ghost" onclick="hideDeployForm()">Cancel</button>
@@ -471,13 +462,23 @@
       list.innerHTML = '<li class="pr-empty" style="color:var(--text-secondary)">Loading…</li>';
 
       try {
-        var res = await fetch('https://api.github.com/search/issues?q=is:pr+is:open+author:@me&per_page=10', {
+        /* first get the authenticated user's login */
+        var userRes = await fetch('https://api.github.com/user', {
           headers: { Authorization: 'token ' + token, Accept: 'application/vnd.github.v3+json' }
         });
-        if (!res.ok) throw new Error('API ' + res.status);
+        if (!userRes.ok) throw new Error('Token error ' + userRes.status);
+        var userData = await userRes.json();
+        var login = userData.login;
+
+        /* search for open PRs by this user */
+        var q = encodeURIComponent('is:pr is:open author:' + login);
+        var res = await fetch('https://api.github.com/search/issues?q=' + q + '&per_page=10&sort=updated&order=desc', {
+          headers: { Authorization: 'token ' + token, Accept: 'application/vnd.github.v3+json' }
+        });
+        if (!res.ok) throw new Error('Search API ' + res.status);
         var data = await res.json();
 
-        if (data.items.length === 0) {
+        if (!data.items || data.items.length === 0) {
           list.innerHTML = '<li class="pr-empty">No open PRs — nice and clean</li>';
           return;
         }
@@ -493,7 +494,8 @@
             + '</li>';
         }).join('');
       } catch (e) {
-        list.innerHTML = '<li class="pr-empty" style="color:var(--accent-red)">Failed to load PRs</li>';
+        console.error('PR load error:', e);
+        list.innerHTML = '<li class="pr-empty" style="color:var(--accent-red)">Failed to load PRs — ' + escHtml(e.message) + '</li>';
       }
     }
 
@@ -519,11 +521,11 @@
       var token = localStorage.getItem(TOKEN_KEY);
       var imageName = document.getElementById('image-name').value.trim();
       var tag = document.getElementById('tag').value.trim();
+      var namespace = document.getElementById('namespace').value.trim();
       var deploymentRepo = document.getElementById('deployment-repo').value.trim();
-      var selectedTargets = Array.from(document.getElementById('targets').selectedOptions).map(function(o) { return o.value; });
 
-      if (!imageName || !tag || !deploymentRepo || selectedTargets.length === 0) {
-        return showToast('Fill all fields & select at least one target', 'error');
+      if (!imageName || !tag || !namespace || !deploymentRepo) {
+        return showToast('Please fill in all fields', 'error');
       }
       hideDeployForm();
 
@@ -540,8 +542,8 @@
             client_payload: {
               image_name: imageName,
               tag: tag,
-              deployment_repo: deploymentRepo,
-              targets: selectedTargets
+              namespace: namespace,
+              deployment_repo: deploymentRepo
             }
           })
         });
