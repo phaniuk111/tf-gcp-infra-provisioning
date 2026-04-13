@@ -4,162 +4,535 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Platform Developer Portal</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@octokit/core@6/dist-web/index.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <style>
-    body { font-family: system-ui, -apple-system, sans-serif; }
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      --bg-primary: #0a0a0f;
+      --bg-card: #12121a;
+      --bg-card-hover: #181824;
+      --bg-input: #0e0e16;
+      --border: #1e1e2e;
+      --border-focus: #3b82f6;
+      --text-primary: #e8e8ef;
+      --text-secondary: #6b6b80;
+      --text-muted: #44445a;
+      --accent-blue: #3b82f6;
+      --accent-blue-dim: #2563eb;
+      --accent-green: #10b981;
+      --accent-green-dim: #059669;
+      --accent-amber: #f59e0b;
+      --accent-red: #ef4444;
+      --accent-purple: #8b5cf6;
+      --radius: 12px;
+      --radius-lg: 16px;
+      --font-body: 'Plus Jakarta Sans', system-ui, sans-serif;
+      --font-mono: 'JetBrains Mono', monospace;
+    }
+
+    body {
+      font-family: var(--font-body);
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      min-height: 100vh;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    body::before {
+      content: '';
+      position: fixed; inset: 0;
+      background-image:
+        linear-gradient(rgba(255,255,255,.015) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,.015) 1px, transparent 1px);
+      background-size: 64px 64px;
+      pointer-events: none; z-index: 0;
+    }
+
+    .app { position: relative; z-index: 1; max-width: 1120px; margin: 0 auto; padding: 48px 24px 80px; }
+
+    /* === HEADER === */
+    .header { margin-bottom: 48px; }
+    .header-top { display: flex; align-items: center; gap: 14px; margin-bottom: 6px; }
+    .header-badge {
+      display: inline-flex; align-items: center; gap: 6px;
+      font-family: var(--font-mono); font-size: 12px; font-weight: 500;
+      color: var(--accent-green); background: rgba(16,185,129,0.08);
+      border: 1px solid rgba(16,185,129,0.15); border-radius: 100px; padding: 4px 12px;
+    }
+    .header-badge::before {
+      content: ''; width: 6px; height: 6px; border-radius: 50%;
+      background: var(--accent-green); box-shadow: 0 0 8px var(--accent-green);
+    }
+    .header h1 {
+      font-size: 36px; font-weight: 800; letter-spacing: -0.03em;
+      background: linear-gradient(135deg, #e8e8ef 40%, #6b6b80);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    }
+    .header-sub {
+      font-family: var(--font-mono); font-size: 13px; color: var(--text-muted); margin-top: 4px;
+    }
+    .header-sub span { color: var(--text-secondary); }
+
+    /* === TOKEN BAR === */
+    .token-bar {
+      display: flex; align-items: center; gap: 12px;
+      background: var(--bg-card); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 12px 16px; margin-bottom: 40px;
+      flex-wrap: wrap;
+    }
+    .token-bar label {
+      font-family: var(--font-mono); font-size: 12px; color: var(--text-secondary);
+      white-space: nowrap; flex-shrink: 0;
+    }
+    .token-bar input {
+      flex: 1; min-width: 200px; background: var(--bg-input); border: 1px solid var(--border);
+      border-radius: 8px; padding: 8px 12px; color: var(--text-primary);
+      font-family: var(--font-mono); font-size: 13px; outline: none;
+      transition: border-color 0.2s;
+    }
+    .token-bar input:focus { border-color: var(--border-focus); }
+    .token-bar input::placeholder { color: var(--text-muted); }
+
+    /* === USER BAR (replaces token bar after connect) === */
+    .user-bar {
+      display: none; align-items: center; gap: 12px;
+      background: var(--bg-card); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 10px 16px; margin-bottom: 40px;
+    }
+    .user-bar.active { display: flex; }
+    .user-bar img {
+      width: 28px; height: 28px; border-radius: 50%; border: 2px solid var(--border);
+    }
+    .user-bar-name { font-family: var(--font-mono); font-size: 13px; font-weight: 600; }
+    .user-bar-handle { font-family: var(--font-mono); font-size: 12px; color: var(--text-muted); }
+    .user-bar-spacer { flex: 1; }
+    .user-bar-status {
+      display: flex; align-items: center; gap: 6px;
+      font-family: var(--font-mono); font-size: 11px; color: var(--accent-green);
+    }
+    .user-bar-status::before {
+      content: ''; width: 6px; height: 6px; border-radius: 50%;
+      background: var(--accent-green); box-shadow: 0 0 6px var(--accent-green);
+    }
+
+    /* === BUTTONS === */
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+      font-family: var(--font-body); font-weight: 600; font-size: 13px;
+      border: none; border-radius: 8px; padding: 8px 18px; cursor: pointer;
+      transition: all 0.15s ease; white-space: nowrap; text-decoration: none;
+    }
+    .btn-sm { padding: 6px 14px; font-size: 12px; }
+    .btn-primary { background: var(--accent-blue); color: #fff; }
+    .btn-primary:hover { background: var(--accent-blue-dim); transform: translateY(-1px); }
+    .btn-green { background: var(--accent-green); color: #fff; }
+    .btn-green:hover { background: var(--accent-green-dim); transform: translateY(-1px); }
+    .btn-ghost { background: transparent; color: var(--text-secondary); border: 1px solid var(--border); }
+    .btn-ghost:hover { background: var(--bg-card-hover); color: var(--text-primary); }
+    .btn-danger-text {
+      background: none; border: none; color: var(--accent-red); font-family: var(--font-mono);
+      font-size: 11px; cursor: pointer; padding: 4px 8px; border-radius: 6px;
+    }
+    .btn-danger-text:hover { background: rgba(239,68,68,0.08); }
+
+    .btn-card {
+      width: 100%; padding: 14px 20px; border-radius: var(--radius);
+      background: var(--bg-input); border: 1px solid var(--border);
+      color: var(--text-primary); font-size: 14px; font-weight: 600;
+      justify-content: flex-start; gap: 12px; text-decoration: none;
+    }
+    .btn-card:hover { background: var(--bg-card-hover); border-color: #2a2a3e; transform: translateY(-1px); }
+    .btn-card .btn-icon {
+      width: 32px; height: 32px; border-radius: 8px;
+      display: flex; align-items: center; justify-content: center; font-size: 16px; flex-shrink: 0;
+    }
+    .btn-card .btn-label { text-align: left; }
+    .btn-card .btn-label small {
+      display: block; font-weight: 400; font-size: 12px; color: var(--text-secondary); margin-top: 2px;
+    }
+
+    /* === GRID === */
+    .grid-main { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+    @media (max-width: 768px) {
+      .grid-main { grid-template-columns: 1fr; }
+      .header h1 { font-size: 28px; }
+      .app { padding: 24px 16px 60px; }
+    }
+
+    /* === CARDS === */
+    .card {
+      background: var(--bg-card); border: 1px solid var(--border);
+      border-radius: var(--radius-lg); padding: 24px; transition: border-color 0.2s;
+    }
+    .card:hover { border-color: #2a2a3e; }
+    .card-header {
+      display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px;
+    }
+    .card-title {
+      font-size: 14px; font-weight: 700; letter-spacing: -0.01em;
+      text-transform: uppercase; color: var(--text-secondary);
+    }
+
+    /* === PR LIST === */
+    .pr-list { list-style: none; display: flex; flex-direction: column; gap: 8px; }
+    .pr-item {
+      display: flex; align-items: flex-start; justify-content: space-between; gap: 12px;
+      padding: 12px 14px; border-radius: 10px; background: var(--bg-input);
+      border: 1px solid transparent; transition: all 0.15s;
+    }
+    .pr-item:hover { border-color: var(--border); background: var(--bg-card-hover); }
+    .pr-item a {
+      color: var(--text-primary); text-decoration: none; font-size: 13px;
+      font-weight: 500; line-height: 1.4;
+    }
+    .pr-item a:hover { color: var(--accent-blue); }
+    .pr-repo {
+      font-family: var(--font-mono); font-size: 11px; color: var(--text-muted);
+      background: rgba(139,92,246,0.08); border: 1px solid rgba(139,92,246,0.12);
+      padding: 2px 8px; border-radius: 100px; white-space: nowrap; flex-shrink: 0;
+    }
+    .pr-empty { color: var(--text-muted); font-size: 13px; padding: 24px 0; text-align: center; }
+    .pr-status {
+      width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; margin-top: 5px;
+      background: var(--accent-green);
+    }
+    .pr-item-left { display: flex; gap: 10px; align-items: flex-start; min-width: 0; }
+
+    /* === DEPLOY CTA === */
+    .deploy-cta {
+      width: 100%; padding: 18px 20px; border-radius: var(--radius);
+      background: linear-gradient(135deg, rgba(16,185,129,0.12), rgba(16,185,129,0.04));
+      border: 1px solid rgba(16,185,129,0.2);
+      color: var(--accent-green); font-size: 15px; font-weight: 700;
+      display: flex; align-items: center; gap: 12px; cursor: pointer;
+      transition: all 0.15s; font-family: var(--font-body);
+    }
+    .deploy-cta:hover {
+      background: linear-gradient(135deg, rgba(16,185,129,0.18), rgba(16,185,129,0.08));
+      border-color: rgba(16,185,129,0.35); transform: translateY(-1px);
+    }
+    .deploy-cta .cta-icon {
+      width: 36px; height: 36px; border-radius: 10px;
+      background: rgba(16,185,129,0.15); display: flex;
+      align-items: center; justify-content: center; font-size: 18px;
+    }
+
+    .section-label {
+      font-family: var(--font-mono); font-size: 11px; font-weight: 500;
+      color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.08em;
+      margin-top: 20px; margin-bottom: 12px;
+    }
+    .actions-stack { display: flex; flex-direction: column; gap: 10px; }
+
+    /* === MODAL === */
+    .modal-overlay {
+      display: none; position: fixed; inset: 0; z-index: 100;
+      background: rgba(0,0,0,0.7); backdrop-filter: blur(4px);
+      align-items: center; justify-content: center; padding: 24px;
+    }
+    .modal-overlay.active { display: flex; }
+    .modal {
+      background: var(--bg-card); border: 1px solid var(--border);
+      border-radius: var(--radius-lg); padding: 32px;
+      max-width: 480px; width: 100%; animation: modalIn 0.2s ease;
+    }
+    @keyframes modalIn { from { opacity: 0; transform: translateY(12px) scale(0.97); } }
+    .modal h3 { font-size: 20px; font-weight: 700; letter-spacing: -0.02em; margin-bottom: 24px; }
+    .form-group { margin-bottom: 16px; }
+    .form-group label {
+      display: block; font-size: 12px; font-weight: 600;
+      color: var(--text-secondary); margin-bottom: 6px;
+      text-transform: uppercase; letter-spacing: 0.04em;
+    }
+    .form-input {
+      width: 100%; padding: 10px 14px; background: var(--bg-input);
+      border: 1px solid var(--border); border-radius: 8px;
+      color: var(--text-primary); font-family: var(--font-mono); font-size: 13px;
+      outline: none; transition: border-color 0.2s;
+    }
+    .form-input:focus { border-color: var(--border-focus); }
+    .form-input::placeholder { color: var(--text-muted); }
+    select.form-input { height: 140px; }
+    select.form-input option { padding: 6px 4px; }
+    .form-hint { font-size: 11px; color: var(--text-muted); margin-top: 4px; }
+    .modal-actions { display: flex; gap: 12px; margin-top: 28px; }
+    .modal-actions .btn { flex: 1; padding: 12px; font-size: 14px; }
+
+    /* === STATUS BAR === */
+    .status-bar {
+      display: flex; align-items: center; gap: 24px; flex-wrap: wrap;
+      margin-top: 40px; padding: 16px 20px;
+      background: var(--bg-card); border: 1px solid var(--border);
+      border-radius: var(--radius); font-family: var(--font-mono); font-size: 12px;
+    }
+    .status-item { display: flex; align-items: center; gap: 8px; color: var(--text-secondary); }
+    .status-dot { width: 6px; height: 6px; border-radius: 50%; }
+    .status-dot.green { background: var(--accent-green); box-shadow: 0 0 6px var(--accent-green); }
+    .status-dot.amber { background: var(--accent-amber); box-shadow: 0 0 6px var(--accent-amber); }
+
+    /* === TOAST === */
+    .toast {
+      position: fixed; bottom: 24px; right: 24px; z-index: 200;
+      padding: 14px 20px; border-radius: 10px; font-size: 13px; font-weight: 600;
+      transform: translateY(120%); opacity: 0; transition: all 0.3s ease; max-width: 360px;
+    }
+    .toast.show { transform: translateY(0); opacity: 1; }
+    .toast.success { background: rgba(16,185,129,0.15); border: 1px solid rgba(16,185,129,0.3); color: var(--accent-green); }
+    .toast.error { background: rgba(239,68,68,0.15); border: 1px solid rgba(239,68,68,0.3); color: var(--accent-red); }
   </style>
 </head>
-<body class="bg-gray-950 text-white">
-  <div class="max-w-6xl mx-auto p-8">
-    <h1 class="text-4xl font-bold mb-2">🏠 Platform Developer Portal</h1>
-    <p class="text-gray-400 mb-8">tf-gcp-infra-provisioning • Self-service for GCP + GitHub</p>
+<body>
+  <div class="app">
 
-    <!-- Token -->
-    <div class="mb-8 p-4 bg-gray-900 rounded-2xl">
-      <h2 class="text-lg font-semibold mb-3">🔑 GitHub Token (saved only in your browser)</h2>
-      <input id="token" type="password" placeholder="Paste your GitHub PAT (repo + workflow scopes)" 
-             class="w-full p-3 bg-gray-800 border border-gray-700 rounded-2xl text-white">
-      <button onclick="saveToken()" 
-              class="mt-3 px-6 py-2 bg-blue-600 hover:bg-blue-500 rounded-xl text-sm font-medium">
-        Save Token
-      </button>
+    <!-- HEADER -->
+    <header class="header">
+      <div class="header-top">
+        <h1>Developer Portal</h1>
+        <span class="header-badge">operational</span>
+      </div>
+      <p class="header-sub">
+        <span>tf-gcp-infra-provisioning</span> &middot; Self-service for GCP + GitHub
+      </p>
+    </header>
+
+    <!-- TOKEN INPUT (shown when not connected) -->
+    <div class="token-bar" id="token-bar">
+      <label>GH_TOKEN</label>
+      <input id="token" type="password" placeholder="ghp_xxxx  (repo + workflow scopes)" spellcheck="false" autocomplete="off">
+      <button class="btn btn-primary btn-sm" onclick="saveToken()">Connect</button>
     </div>
 
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
-      <!-- My PRs -->
-      <div class="bg-gray-900 rounded-3xl p-6">
-        <h2 class="text-xl font-semibold mb-4 flex items-center gap-2">
-          📋 My Open Pull Requests
-          <button onclick="loadMyPRs()" class="text-sm bg-gray-800 hover:bg-gray-700 px-4 py-1 rounded-xl">Refresh</button>
-        </h2>
-        <ul id="pr-list" class="space-y-3"></ul>
+    <!-- USER BAR (shown when connected) -->
+    <div class="user-bar" id="user-bar">
+      <img id="user-avatar" src="" alt="">
+      <span class="user-bar-name" id="user-name"></span>
+      <span class="user-bar-handle" id="user-handle"></span>
+      <span class="user-bar-spacer"></span>
+      <span class="user-bar-status">connected</span>
+      <button class="btn-danger-text" onclick="disconnect()">disconnect</button>
+    </div>
+
+    <!-- MAIN GRID -->
+    <div class="grid-main">
+
+      <!-- LEFT: Open PRs -->
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">My Open Pull Requests</span>
+          <button class="btn btn-ghost btn-sm" onclick="loadMyPRs()">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2v6h-6"/><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M3 22v-6h6"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/></svg>
+            Refresh
+          </button>
+        </div>
+        <ul id="pr-list" class="pr-list">
+          <li class="pr-empty">Connect your GitHub token to load PRs</li>
+        </ul>
       </div>
 
-      <!-- Quick Actions -->
-      <div class="bg-gray-900 rounded-3xl p-6">
-        <h2 class="text-xl font-semibold mb-4">🚀 Quick Actions</h2>
+      <!-- RIGHT: Quick Actions -->
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">Quick Actions</span>
+        </div>
 
-        <button onclick="showDeployForm()" 
-                class="w-full mb-4 flex items-center justify-center gap-3 bg-emerald-600 hover:bg-emerald-500 text-white font-medium py-5 px-6 rounded-3xl text-lg">
-          🚀 Deploy to UAT
+        <button class="deploy-cta" onclick="showDeployForm()">
+          <span class="cta-icon">&#9650;</span>
+          Deploy to UAT
         </button>
 
-        <a href="https://github.com/phaniuk111/tf-gcp-infra-provisioning/issues/new?template=bootstrap-repo.md" 
-           target="_blank"
-           class="block w-full text-center bg-gray-800 hover:bg-gray-700 text-white font-medium py-5 px-6 rounded-3xl mb-3">
-          🛠 Bootstrap Existing Repo
-        </a>
-
-        <a href="https://github.com/phaniuk111/tf-gcp-infra-provisioning/issues/new?template=request-firewall-rule.md" 
-           target="_blank"
-           class="block w-full text-center bg-gray-800 hover:bg-gray-700 text-white font-medium py-5 px-6 rounded-3xl">
-          🔥 Request Firewall Rule
-        </a>
+        <p class="section-label">Issue Templates</p>
+        <div class="actions-stack">
+          <a href="https://github.com/phaniuk111/tf-gcp-infra-provisioning/issues/new?template=bootstrap-repo.md" target="_blank" class="btn btn-card">
+            <span class="btn-icon" style="background:rgba(139,92,246,0.1);color:var(--accent-purple);">&#9881;</span>
+            <span class="btn-label">Bootstrap Existing Repo<small>Set up CI/CD for an existing repository</small></span>
+          </a>
+          <a href="https://github.com/phaniuk111/tf-gcp-infra-provisioning/issues/new?template=request-firewall-rule.md" target="_blank" class="btn btn-card">
+            <span class="btn-icon" style="background:rgba(245,158,11,0.1);color:var(--accent-amber);">&#9737;</span>
+            <span class="btn-label">Request Firewall Rule<small>Open a new VPC firewall change request</small></span>
+          </a>
+        </div>
       </div>
     </div>
 
-    <!-- Deploy Modal -->
-    <div id="deploy-modal" class="hidden fixed inset-0 bg-black/70 flex items-center justify-center z-50">
-      <div class="bg-gray-900 rounded-3xl p-8 max-w-md w-full mx-4">
-        <h3 class="text-2xl font-semibold mb-6">Deploy to UAT</h3>
-        <div class="space-y-4">
-          <div>
-            <label class="block text-sm text-gray-400 mb-1">Image Name</label>
-            <input id="image-name" type="text" placeholder="my-app" class="w-full p-3 bg-gray-800 border border-gray-700 rounded-3xl text-white">
-          </div>
-          <div>
-            <label class="block text-sm text-gray-400 mb-1">Tag</label>
-            <input id="tag" type="text" value="latest" class="w-full p-3 bg-gray-800 border border-gray-700 rounded-3xl text-white">
-          </div>
-          <div>
-            <label class="block text-sm text-gray-400 mb-1">Deployment Repo Name</label>
-            <input id="deployment-repo" type="text" placeholder="phaniuk111/my-service" class="w-full p-3 bg-gray-800 border border-gray-700 rounded-3xl text-white">
-          </div>
-          <div>
-            <label class="block text-sm text-gray-400 mb-1">Select Targets (multi-select)</label>
-            <select id="targets" multiple class="w-full p-3 bg-gray-800 border border-gray-700 rounded-3xl text-white h-40">
-              <option value="payments-api">payments-api</option>
-              <option value="auth-service">auth-service</option>
-              <option value="checkout-service">checkout-service</option>
-              <option value="user-service">user-service</option>
-              <option value="fraud-service">fraud-service</option>
-            </select>
-            <p class="text-xs text-gray-500 mt-1">Hold Ctrl/Cmd to select multiple</p>
-          </div>
-        </div>
-        <div class="flex gap-3 mt-8">
-          <button onclick="hideDeployForm()" class="flex-1 py-4 text-gray-400 font-medium">Cancel</button>
-          <button onclick="triggerDeployToUAT()" class="flex-1 py-4 bg-emerald-600 hover:bg-emerald-500 rounded-3xl font-semibold">Deploy Now</button>
-        </div>
+    <!-- STATUS BAR -->
+    <div class="status-bar">
+      <div class="status-item">
+        <span class="status-dot green"></span>
+        GCP Project: active
+      </div>
+      <div class="status-item">
+        <span class="status-dot green"></span>
+        Actions: healthy
+      </div>
+      <div class="status-item" id="token-status">
+        <span class="status-dot amber"></span>
+        Token: not connected
       </div>
     </div>
   </div>
 
+  <!-- DEPLOY MODAL -->
+  <div class="modal-overlay" id="deploy-modal">
+    <div class="modal">
+      <h3>&#9650; Deploy to UAT</h3>
+      <div class="form-group">
+        <label>Image Name</label>
+        <input id="image-name" type="text" placeholder="my-app" class="form-input">
+      </div>
+      <div class="form-group">
+        <label>Tag</label>
+        <input id="tag" type="text" value="latest" class="form-input">
+      </div>
+      <div class="form-group">
+        <label>Deployment Repo</label>
+        <input id="deployment-repo" type="text" placeholder="phaniuk111/my-service" class="form-input">
+      </div>
+      <div class="form-group">
+        <label>Targets</label>
+        <select id="targets" multiple class="form-input">
+          <option value="payments-api">payments-api</option>
+          <option value="auth-service">auth-service</option>
+          <option value="checkout-service">checkout-service</option>
+          <option value="user-service">user-service</option>
+          <option value="fraud-service">fraud-service</option>
+        </select>
+        <p class="form-hint">Hold Ctrl / Cmd to select multiple targets</p>
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-ghost" onclick="hideDeployForm()">Cancel</button>
+        <button class="btn btn-green" onclick="triggerDeployToUAT()">Deploy Now</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- TOAST -->
+  <div class="toast" id="toast"></div>
+
   <script>
-    let octokit;
-    const tokenKey = 'github_pat';
+    var TOKEN_KEY = 'github_pat';
 
+    /* ---- Toast ---- */
+    function showToast(msg, type) {
+      type = type || 'success';
+      var t = document.getElementById('toast');
+      t.textContent = msg;
+      t.className = 'toast ' + type + ' show';
+      setTimeout(function() { t.classList.remove('show'); }, 3500);
+    }
+
+    /* ---- Token ---- */
     function saveToken() {
-      const token = document.getElementById('token').value.trim();
-      if (token) {
-        localStorage.setItem(tokenKey, token);
-        alert('✅ Token saved!');
-        loadMyPRs();
-      }
+      var token = document.getElementById('token').value.trim();
+      if (!token) return showToast('Paste your GitHub token', 'error');
+      localStorage.setItem(TOKEN_KEY, token);
+      showToast('Connected — loading your PRs…');
+      onConnected(token);
     }
 
-    async function loadMyPRs() {
-      const token = localStorage.getItem(tokenKey);
-      if (!token) return;
-      const list = document.getElementById('pr-list');
-      list.innerHTML = '<li class="text-gray-400">Loading...</li>';
+    function disconnect() {
+      localStorage.removeItem(TOKEN_KEY);
+      document.getElementById('token-bar').style.display = '';
+      document.getElementById('user-bar').classList.remove('active');
+      document.getElementById('token').value = '';
+      document.getElementById('pr-list').innerHTML = '<li class="pr-empty">Connect your GitHub token to load PRs</li>';
+      document.getElementById('token-status').innerHTML = '<span class="status-dot amber"></span> Token: not connected';
+    }
+
+    async function onConnected(token) {
+      document.getElementById('token-bar').style.display = 'none';
+      document.getElementById('token-status').innerHTML = '<span class="status-dot green"></span> Token: connected';
+
       try {
-        octokit = new Octokit({ auth: token });
-        const { data } = await octokit.request('GET /search/issues', {
-          q: 'is:pr is:open author:@me',
-          per_page: 8
+        var res = await fetch('https://api.github.com/user', {
+          headers: { Authorization: 'token ' + token, Accept: 'application/vnd.github.v3+json' }
         });
-        list.innerHTML = data.items.length === 0 
-          ? '<li class="text-gray-400">No open PRs</li>' 
-          : data.items.map(pr => `
-            <li class="flex justify-between bg-gray-800 p-4 rounded-3xl">
-              <a href="${pr.html_url}" target="_blank" class="hover:underline">${pr.title}</a>
-              <span class="text-xs text-gray-400">${pr.repository_url.split('/').pop()}</span>
-            </li>`).join('');
+        if (!res.ok) throw new Error('bad token');
+        var user = await res.json();
+        document.getElementById('user-avatar').src = user.avatar_url;
+        document.getElementById('user-name').textContent = user.name || user.login;
+        document.getElementById('user-handle').textContent = '@' + user.login;
+        document.getElementById('user-bar').classList.add('active');
       } catch (e) {
-        list.innerHTML = `<li class="text-red-400">Error loading PRs</li>`;
+        disconnect();
+        return showToast('Invalid token — check scopes and try again', 'error');
+      }
+
+      loadMyPRs();
+    }
+
+    /* ---- PRs ---- */
+    async function loadMyPRs() {
+      var token = localStorage.getItem(TOKEN_KEY);
+      var list = document.getElementById('pr-list');
+      if (!token) return;
+      list.innerHTML = '<li class="pr-empty" style="color:var(--text-secondary)">Loading…</li>';
+
+      try {
+        var res = await fetch('https://api.github.com/search/issues?q=is:pr+is:open+author:@me&per_page=10', {
+          headers: { Authorization: 'token ' + token, Accept: 'application/vnd.github.v3+json' }
+        });
+        if (!res.ok) throw new Error('API ' + res.status);
+        var data = await res.json();
+
+        if (data.items.length === 0) {
+          list.innerHTML = '<li class="pr-empty">No open PRs — nice and clean</li>';
+          return;
+        }
+
+        list.innerHTML = data.items.map(function(pr) {
+          var repo = pr.repository_url.split('/').pop();
+          return '<li class="pr-item">'
+            + '<div class="pr-item-left">'
+            + '<span class="pr-status"></span>'
+            + '<a href="' + pr.html_url + '" target="_blank" rel="noopener">' + escHtml(pr.title) + '</a>'
+            + '</div>'
+            + '<span class="pr-repo">' + escHtml(repo) + '</span>'
+            + '</li>';
+        }).join('');
+      } catch (e) {
+        list.innerHTML = '<li class="pr-empty" style="color:var(--accent-red)">Failed to load PRs</li>';
       }
     }
 
-    function showDeployForm() {
-      if (!localStorage.getItem(tokenKey)) return alert('Please save your GitHub token first');
-      document.getElementById('deploy-modal').classList.remove('hidden');
+    function escHtml(s) {
+      var d = document.createElement('div');
+      d.textContent = s;
+      return d.innerHTML;
     }
 
-    function hideDeployForm() {
-      document.getElementById('deploy-modal').classList.add('hidden');
+    /* ---- Deploy Modal ---- */
+    function showDeployForm() {
+      if (!localStorage.getItem(TOKEN_KEY)) return showToast('Connect your token first', 'error');
+      document.getElementById('deploy-modal').classList.add('active');
     }
+    function hideDeployForm() {
+      document.getElementById('deploy-modal').classList.remove('active');
+    }
+    document.getElementById('deploy-modal').addEventListener('click', function(e) {
+      if (e.target === e.currentTarget) hideDeployForm();
+    });
 
     async function triggerDeployToUAT() {
-      const token = localStorage.getItem(tokenKey);
-      const imageName = document.getElementById('image-name').value.trim();
-      const tag = document.getElementById('tag').value.trim();
-      const deploymentRepo = document.getElementById('deployment-repo').value.trim();
-      const selectedTargets = Array.from(document.getElementById('targets').selectedOptions).map(opt => opt.value);
+      var token = localStorage.getItem(TOKEN_KEY);
+      var imageName = document.getElementById('image-name').value.trim();
+      var tag = document.getElementById('tag').value.trim();
+      var deploymentRepo = document.getElementById('deployment-repo').value.trim();
+      var selectedTargets = Array.from(document.getElementById('targets').selectedOptions).map(function(o) { return o.value; });
 
       if (!imageName || !tag || !deploymentRepo || selectedTargets.length === 0) {
-        return alert('Please fill all fields and select at least one target');
+        return showToast('Fill all fields & select at least one target', 'error');
       }
-
       hideDeployForm();
 
       try {
-        await fetch('https://api.github.com/repos/phaniuk111/tf-gcp-infra-provisioning/dispatches', {
+        var res = await fetch('https://api.github.com/repos/phaniuk111/tf-gcp-infra-provisioning/dispatches', {
           method: 'POST',
           headers: {
-            'Authorization': `token ${token}`,
-            'Accept': 'application/vnd.github.v3+json',
+            Authorization: 'token ' + token,
+            Accept: 'application/vnd.github.v3+json',
             'Content-Type': 'application/json'
           },
           body: JSON.stringify({
@@ -172,14 +545,18 @@
             }
           })
         });
-        alert('✅ Deploy to UAT triggered! Check Actions tab.');
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        showToast('Deploy triggered — check Actions tab');
       } catch (e) {
-        alert('Error: ' + e.message);
+        showToast('Deploy failed: ' + e.message, 'error');
       }
     }
 
-    // Auto-load on page open
-    window.onload = () => loadMyPRs();
+    /* ---- Init ---- */
+    window.addEventListener('DOMContentLoaded', function() {
+      var saved = localStorage.getItem(TOKEN_KEY);
+      if (saved) onConnected(saved);
+    });
   </script>
 </body>
 </html>
