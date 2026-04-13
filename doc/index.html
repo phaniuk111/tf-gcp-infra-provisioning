@@ -1,0 +1,50 @@
+<!-- Inside the Quick Actions div -->
+<button onclick="showDeployForm()" 
+        class="w-full mb-4 flex items-center justify-center gap-3 bg-emerald-600 hover:bg-emerald-500 text-white font-medium py-4 px-6 rounded-2xl text-lg">
+  🚀 Deploy to UAT
+</button>
+
+<!-- Multi-select modal (add this before the closing </body> tag) -->
+<div id="deploy-modal" class="hidden fixed inset-0 bg-black/70 flex items-center justify-center z-50">
+  <div class="bg-gray-900 rounded-3xl p-8 max-w-md w-full mx-4">
+    <h3 class="text-2xl font-semibold mb-6">Deploy to UAT</h3>
+    
+    <div class="space-y-4">
+      <div>
+        <label class="block text-sm text-gray-400 mb-1">Image Name</label>
+        <input id="image-name" type="text" placeholder="my-app" 
+               class="w-full p-3 bg-gray-800 border border-gray-700 rounded-2xl text-white">
+      </div>
+      <div>
+        <label class="block text-sm text-gray-400 mb-1">Tag</label>
+        <input id="tag" type="text" placeholder="v1.2.3" value="latest"
+               class="w-full p-3 bg-gray-800 border border-gray-700 rounded-2xl text-white">
+      </div>
+      <div>
+        <label class="block text-sm text-gray-400 mb-1">Deployment Repo Name</label>
+        <input id="deployment-repo" type="text" placeholder="ug23-eelm/my-service-repo" 
+               class="w-full p-3 bg-gray-800 border border-gray-700 rounded-2xl text-white">
+      </div>
+      <div>
+        <label class="block text-sm text-gray-400 mb-1">Select Targets (multi-select)</label>
+        <select id="targets" multiple 
+                class="w-full p-3 bg-gray-800 border border-gray-700 rounded-2xl text-white h-40">
+          <option value="payments-api">payments-api</option>
+          <option value="auth-service">auth-service</option>
+          <option value="checkout-service">checkout-service</option>
+          <option value="user-service">user-service</option>
+          <option value="fraud-service">fraud-service</option>
+          <!-- Add more options here as needed -->
+        </select>
+        <p class="text-xs text-gray-500 mt-1">Hold Ctrl (Windows) or Cmd (Mac) to select multiple</p>
+      </div>
+    </div>
+
+    <div class="flex gap-3 mt-8">
+      <button onclick="hideDeployForm()" 
+              class="flex-1 py-4 text-gray-400 font-medium">Cancel</button>
+      <button onclick="triggerDeployToUAT()" 
+              class="flex-1 py-4 bg-emerald-600 hover:bg-emerald-500 rounded-2xl font-semibold">Deploy Now</button>
+    </div>
+  </div>
+</div>
