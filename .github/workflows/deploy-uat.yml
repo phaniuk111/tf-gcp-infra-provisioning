@@ -1,0 +1,24 @@
+name: Deploy to UAT (PoC)
+
+on:
+  repository_dispatch:
+    types: [deploy-to-uat]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Print deployment info
+        run: |
+          echo "========================================="
+          echo "  DEPLOYED TO UAT"
+          echo "========================================="
+          echo ""
+          echo "Image:           ${{ github.event.client_payload.image_name }}"
+          echo "Tag:             ${{ github.event.client_payload.tag }}"
+          echo "Namespace:       ${{ github.event.client_payload.namespace }}"
+          echo "Deployment Repo: ${{ github.event.client_payload.deployment_repo }}"
+          echo ""
+          echo "Triggered by:    ${{ github.actor }}"
+          echo "Timestamp:       $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
+          echo "========================================="
