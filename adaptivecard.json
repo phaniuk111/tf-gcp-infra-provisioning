@@ -1,0 +1,232 @@
+{
+  "type": "AdaptiveCard",
+  "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
+  "version": "1.5",
+  "body": [
+    {
+      "type": "Container",
+      "style": "emphasis",
+      "items": [
+        {
+          "type": "TextBlock",
+          "text": "Sealights Coverage Report for EOD",
+          "size": "ExtraLarge",
+          "weight": "Bolder",
+          "wrap": true
+        },
+        {
+          "type": "TextBlock",
+          "text": "Last updated: 2026-05-01 15:10:00",
+          "size": "Small",
+          "isSubtle": true,
+          "spacing": "None"
+        }
+      ]
+    },
+    {
+      "type": "Container",
+      "items": [
+        {
+          "type": "FactSet",
+          "facts": [
+            { "title": "Branch:", "value": "main" },
+            { "title": "Build Number:", "value": "eod-capability-palace-pnl-on-demand-EOD-2057-sealight-51" },
+            { "title": "Last Build:", "value": "2026-05-01 10:52:03" }
+          ]
+        },
+        {
+          "type": "ColumnSet",
+          "spacing": "Medium",
+          "columns": [
+            {
+              "type": "Column",
+              "width": "auto",
+              "items": [
+                {
+                  "type": "TextBlock",
+                  "text": "Overall Coverage:",
+                  "weight": "Bolder",
+                  "wrap": true
+                }
+              ]
+            },
+            {
+              "type": "Column",
+              "width": "auto",
+              "items": [
+                {
+                  "type": "TextBlock",
+                  "text": "🔴 13.97%",
+                  "color": "Attention",
+                  "weight": "Bolder"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "ColumnSet",
+          "columns": [
+            {
+              "type": "Column",
+              "width": "auto",
+              "items": [
+                {
+                  "type": "TextBlock",
+                  "text": "Modified Coverage:",
+                  "weight": "Bolder",
+                  "wrap": true
+                }
+              ]
+            },
+            {
+              "type": "Column",
+              "width": "auto",
+              "items": [
+                {
+                  "type": "TextBlock",
+                  "text": "⚪ N/A",
+                  "isSubtle": true,
+                  "weight": "Bolder"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "Container",
+      "separator": true,
+      "spacing": "Medium",
+      "items": [
+        {
+          "type": "TextBlock",
+          "text": "Test Stage Coverage",
+          "size": "Large",
+          "weight": "Bolder",
+          "wrap": true
+        },
+        {
+          "type": "ColumnSet",
+          "columns": [
+            {
+              "type": "Column",
+              "width": "stretch",
+              "style": "emphasis",
+              "items": [
+                { "type": "TextBlock", "text": "Test Stage", "weight": "Bolder" }
+              ]
+            },
+            {
+              "type": "Column",
+              "width": "stretch",
+              "style": "emphasis",
+              "items": [
+                { "type": "TextBlock", "text": "Coverage", "weight": "Bolder" }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "ColumnSet",
+          "columns": [
+            {
+              "type": "Column",
+              "width": "stretch",
+              "items": [
+                { "type": "TextBlock", "text": "Unit Tests", "wrap": true }
+              ]
+            },
+            {
+              "type": "Column",
+              "width": "stretch",
+              "items": [
+                {
+                  "type": "TextBlock",
+                  "text": "🔴 13.97%",
+                  "color": "Attention",
+                  "weight": "Bolder"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "Container",
+      "separator": true,
+      "spacing": "Medium",
+      "items": [
+        {
+          "type": "TextBlock",
+          "text": "Component Coverage Breakdown",
+          "size": "Large",
+          "weight": "Bolder",
+          "wrap": true
+        },
+        {
+          "type": "ColumnSet",
+          "columns": [
+            { "type": "Column", "width": 3, "style": "emphasis", "items": [{ "type": "TextBlock", "text": "Component", "weight": "Bolder" }] },
+            { "type": "Column", "width": 2, "style": "emphasis", "items": [{ "type": "TextBlock", "text": "Overall", "weight": "Bolder", "horizontalAlignment": "Center" }] },
+            { "type": "Column", "width": 2, "style": "emphasis", "items": [{ "type": "TextBlock", "text": "Modified", "weight": "Bolder", "horizontalAlignment": "Center" }] },
+            { "type": "Column", "width": 2, "style": "emphasis", "items": [{ "type": "TextBlock", "text": "Unit Tests", "weight": "Bolder", "horizontalAlignment": "Center" }] },
+            { "type": "Column", "width": 2, "style": "emphasis", "items": [{ "type": "TextBlock", "text": "Last Build", "weight": "Bolder", "horizontalAlignment": "Center" }] }
+          ]
+        },
+        {
+          "type": "ColumnSet",
+          "columns": [
+            { "type": "Column", "width": 3, "items": [{ "type": "TextBlock", "text": "eod-capability-eod-on-demand", "wrap": true }] },
+            { "type": "Column", "width": 2, "items": [{ "type": "TextBlock", "text": "🟠 51.49%", "color": "Warning", "horizontalAlignment": "Center", "weight": "Bolder" }] },
+            { "type": "Column", "width": 2, "items": [{ "type": "TextBlock", "text": "🔴 9.68%", "color": "Attention", "horizontalAlignment": "Center", "weight": "Bolder" }] },
+            { "type": "Column", "width": 2, "items": [{ "type": "TextBlock", "text": "🟠 51.49%", "color": "Warning", "horizontalAlignment": "Center", "weight": "Bolder" }] },
+            { "type": "Column", "width": 2, "items": [{ "type": "TextBlock", "text": "gh-run-22.1", "horizontalAlignment": "Center", "isSubtle": true }] }
+          ]
+        },
+        {
+          "type": "ColumnSet",
+          "columns": [
+            { "type": "Column", "width": 3, "items": [{ "type": "TextBlock", "text": "eod-capability-palace-pnl-on-demand", "wrap": true }] },
+            { "type": "Column", "width": 2, "items": [{ "type": "TextBlock", "text": "🔴 26.56%", "color": "Attention", "horizontalAlignment": "Center", "weight": "Bolder" }] },
+            { "type": "Column", "width": 2, "items": [{ "type": "TextBlock", "text": "⚪ N/A", "isSubtle": true, "horizontalAlignment": "Center", "weight": "Bolder" }] },
+            { "type": "Column", "width": 2, "items": [{ "type": "TextBlock", "text": "🔴 26.56%", "color": "Attention", "horizontalAlignment": "Center", "weight": "Bolder" }] },
+            { "type": "Column", "width": 2, "items": [{ "type": "TextBlock", "text": "gh-run-51.1", "horizontalAlignment": "Center", "isSubtle": true }] }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "Container",
+      "separator": true,
+      "spacing": "Medium",
+      "items": [
+        {
+          "type": "TextBlock",
+          "text": "Legend",
+          "size": "Medium",
+          "weight": "Bolder",
+          "wrap": true
+        },
+        {
+          "type": "FactSet",
+          "facts": [
+            { "title": "🔴 < 50%", "value": "Poor" },
+            { "title": "🟠 50–74%", "value": "Average" },
+            { "title": "🟢 ≥ 75%", "value": "Good" },
+            { "title": "⚪ N/A", "value": "No Code Changes" }
+          ]
+        }
+      ]
+    }
+  ],
+  "actions": [
+    {
+      "type": "Action.OpenUrl",
+      "title": "View Full Report",
+      "url": "https://github.com/ug23-eelm/173952-1-eod-data-service-mono/blob/EOD-2057-sealight/COVERAGE.md"
+    }
+  ]
+}
