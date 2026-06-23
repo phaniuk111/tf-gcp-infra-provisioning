@@ -1,0 +1,1 @@
+https://docs.cloud.google.com/java/docs/reference/google-cloud-orchestration-airflow/latest/com.google.cloud.orchestration.airflow.service.v1.EnvironmentConfigOrBuilder#com_google_cloud_orchestration_airflow_service_v1_EnvironmentConfigOrBuilder_getAirflowUri__
